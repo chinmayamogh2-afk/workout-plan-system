@@ -35,10 +35,10 @@ public class WorkoutPlanSeleniumTest {
     private static final String SCREENSHOTS_DIR = "target/selenium-screenshots";
 
     @BeforeClass
-    public void setupClass() {
+    public void setupClass() throws IOException {
         // Auto-download and configure the ChromeDriver matching installed Chrome
         WebDriverManager.chromedriver().setup();
-        Files.createDirectories(Path.of(SCREENSHOTS_DIR)).toString();
+        Files.createDirectories(Path.of(SCREENSHOTS_DIR));
     }
 
     private void createScreenshotsDir() {
