@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>Error | FitFlow</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"/>
+<link rel="stylesheet" th:href="@{/css/style.css}"/></head>
+<body class="login-body">
+<div class="error-page">
+    <div class="error-code" th:text="${errorTitle ?: 'Error'}">Error</div>
+    <p class="error-message" th:text="${errorMessage ?: 'Something went wrong.'}">Something went wrong.</p>
+    <a href="/dashboard" class="btn btn-primary">← Go to Dashboard</a>
+</div>
+</body>
+</html>

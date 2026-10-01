@@ -1,0 +1,53 @@
+---
+# =============================================================
+# Role: common – Installs prerequisite packages
+# Idempotent: apt/brew only installs if not already present
+# =============================================================
+
+- name: Update package cache (Debian/Ubuntu)
+  apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+  become: true
+  tags: [common]
+
+- name: Install common packages (Debian/Ubuntu)
+  apt:
+    name:
+      - curl
+      - wget
+      - git
+      - unzip
+      - ca-certificates
+      - gnupg
+      - lsb-release
+      - apt-transport-https
+    state: present
+  when: ansible_os_family == "Debian"
+  become: true
+  tags: [common]
+
+- name: Install common packages (macOS via Homebrew)
+  homebrew:
+    name:
+      - curl
+      - wget
+      - git
+    state: present
+  when: ansible_os_family == "Darwin"
+  tags: [common]
+
+- name: Create application directory
+  file:
+    path: "{{ app_dir }}"
+    state: directory
+    mode: '0755'
+  tags: [common]
+
+- name: Create logs directory
+  file:
+    path: "{{ app_dir }}/logs"
+    state: directory
+    mode: '0755'
+  tags: [common]

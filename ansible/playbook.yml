@@ -1,0 +1,38 @@
+---
+# =============================================================
+# Ansible Playbook – Workout Plan Management System
+# Configures: Java, Docker, Docker Compose, Application
+# Demonstrates idempotency: running twice produces no changes
+# =============================================================
+
+- name: Configure Workout Plan Management System
+  hosts: local
+  become: false   # Set to true for remote servers requiring sudo
+  gather_facts: true
+
+  vars_files:
+    - group_vars/all.yml
+
+  roles:
+    - common
+    - java
+    - docker
+    - app
+
+  post_tasks:
+    - name: Run health check
+      uri:
+        url: "http://localhost:{{ app_port }}/actuator/health"
+        method: GET
+        status_code: 200
+        timeout: 30
+      register: health_result
+      retries: 6
+      delay: 15
+      until: health_result.status == 200
+      tags: [health, verify]
+
+    - name: Display health check result
+      debug:
+        msg: "✅ Application is healthy: {{ health_result.json }}"
+      tags: [health, verify]

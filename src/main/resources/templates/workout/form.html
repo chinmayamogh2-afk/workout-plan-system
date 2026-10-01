@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title th:text="${formMode == 'create' ? 'Create Plan' : 'Edit Plan'} + ' | FitFlow'">Form</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><div class="brand-icon">💪</div><span class="brand-text">FitFlow</span></div>
+    <ul class="sidebar-nav">
+        <li class="nav-item"><a th:href="@{/dashboard}" class="nav-link"><span class="nav-icon">📊</span><span>Dashboard</span></a></li>
+        <li class="nav-item"><a th:href="@{/workouts}" class="nav-link"><span class="nav-icon">🏋️</span><span>Workout Plans</span></a></li>
+        <li class="nav-item"><a th:href="@{/workouts/new}" class="nav-link" th:classappend="${formMode == 'create' ? 'active' : ''}"><span class="nav-icon">➕</span><span>Create Plan</span></a></li>
+    </ul>
+    <div class="sidebar-footer">
+        <div class="user-info">
+            <div class="user-avatar"><span sec:authentication="name">U</span></div>
+            <div class="user-details">
+                <div class="user-name" sec:authentication="name">User</div>
+                <div class="user-role">
+                    <span sec:authorize="hasRole('ADMIN')" class="role-badge admin">Admin</span>
+                    <span sec:authorize="!hasRole('ADMIN')" class="role-badge trainer">Trainer</span>
+                </div>
+            </div>
+        </div>
+        <form th:action="@{/logout}" method="post" class="logout-form">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <button type="submit" class="btn-logout" id="logoutBtn">🚪 Logout</button>
+        </form>
+    </div>
+</nav>
+
+<div class="main-wrapper">
+    <header class="topbar">
+        <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('collapsed')">☰</button>
+        <div class="topbar-title" th:text="${formMode == 'create' ? 'Create Workout Plan' : 'Edit Workout Plan'}">Form</div>
+        <div class="topbar-right"><span class="topbar-time" id="topbarTime"></span></div>
+    </header>
+
+    <main class="content">
+        <div class="page-header">
+            <div>
+                <h1 class="page-title" th:text="${formMode == 'create' ? '➕ Create Workout Plan' : '✏️ Edit Workout Plan'}">Form</h1>
+                <p class="page-subtitle">Fill in all required fields below.</p>
+            </div>
+            <a th:href="@{/workouts}" class="btn btn-secondary">← Back to List</a>
+        </div>
+
+        <div class="form-card">
+            <form th:action="${formMode == 'create' ? '/workouts/new' : '/workouts/' + planId + '/edit'}"
+                  method="post"
+                  th:object="${planDto}"
+                  id="workoutForm"
+                  novalidate>
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="nameField" class="form-label">Workout Name <span class="required">*</span></label>
+                        <input type="text" id="nameField" th:field="*{name}" class="form-input"
+                               th:classappend="${#fields.hasErrors('name') ? 'is-invalid' : ''}"
+                               placeholder="e.g., Full Body Power Circuit"/>
+                        <div class="field-error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="trainerField" class="form-label">Trainer Name <span class="required">*</span></label>
+                        <input type="text" id="trainerField" th:field="*{trainerName}" class="form-input"
+                               th:classappend="${#fields.hasErrors('trainerName') ? 'is-invalid' : ''}"
+                               placeholder="e.g., John Smith"/>
+                        <div class="field-error" th:if="${#fields.hasErrors('trainerName')}" th:errors="*{trainerName}"></div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="descField" class="form-label">Description <span class="required">*</span></label>
+                    <textarea id="descField" th:field="*{description}" class="form-input form-textarea"
+                              th:classappend="${#fields.hasErrors('description') ? 'is-invalid' : ''}"
+                              rows="4" placeholder="Describe the workout plan objectives..."></textarea>
+                    <div class="field-error" th:if="${#fields.hasErrors('description')}" th:errors="*{description}"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="exerciseField" class="form-label">Exercise Details <span class="required">*</span></label>
+                    <textarea id="exerciseField" th:field="*{exerciseDetails}" class="form-input form-textarea"
+                              th:classappend="${#fields.hasErrors('exerciseDetails') ? 'is-invalid' : ''}"
+                              rows="5" placeholder="List exercises: sets, reps, rest time..."></textarea>
+                    <div class="field-error" th:if="${#fields.hasErrors('exerciseDetails')}" th:errors="*{exerciseDetails}"></div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="durationField" class="form-label">Duration (minutes) <span class="required">*</span></label>
+                        <input type="number" id="durationField" th:field="*{durationMinutes}" class="form-input"
+                               th:classappend="${#fields.hasErrors('durationMinutes') ? 'is-invalid' : ''}"
+                               min="1" max="600" placeholder="e.g., 45"/>
+                        <div class="field-error" th:if="${#fields.hasErrors('durationMinutes')}" th:errors="*{durationMinutes}"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="difficultyField" class="form-label">Difficulty <span class="required">*</span></label>
+                        <select id="difficultyField" th:field="*{difficulty}" class="form-input"
+                                th:classappend="${#fields.hasErrors('difficulty') ? 'is-invalid' : ''}">
+                            <option value="">-- Select Difficulty --</option>
+                            <option th:each="d : ${difficultyValues}" th:value="${d}" th:text="${d}"></option>
+                        </select>
+                        <div class="field-error" th:if="${#fields.hasErrors('difficulty')}" th:errors="*{difficulty}"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="muscleField" class="form-label">Target Muscle Group <span class="required">*</span></label>
+                        <input type="text" id="muscleField" th:field="*{targetMuscleGroup}" class="form-input"
+                               th:classappend="${#fields.hasErrors('targetMuscleGroup') ? 'is-invalid' : ''}"
+                               placeholder="e.g., Chest, Back, Legs"/>
+                        <div class="field-error" th:if="${#fields.hasErrors('targetMuscleGroup')}" th:errors="*{targetMuscleGroup}"></div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <a th:href="@{/workouts}" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary" id="saveBtn"
+                            th:text="${formMode == 'create' ? '💾 Create Plan' : '💾 Save Changes'}">Save</button>
+                </div>
+            </form>
+        </div>
+    </main>
+</div>
+<script th:src="@{/js/main.js}"></script>
+</body>
+</html>

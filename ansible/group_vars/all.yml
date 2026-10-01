@@ -1,0 +1,18 @@
+---
+# Group variables – shared across all hosts
+app_name: workout-plan-system
+app_version: "1.0.0"
+app_port: 8080
+app_dir: /opt/workout-app
+
+docker_image: devopsproject/workout-plan-system
+docker_tag: latest
+docker_compose_version: "2.24.0"
+
+db_name: workout_db
+db_user: workout_user
+# Override sensitive values via --extra-vars or ansible-vault in production
+db_password: workout_pass
+db_root_password: root_secret
+
+java_version: "21"

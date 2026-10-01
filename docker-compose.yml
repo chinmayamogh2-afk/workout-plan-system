@@ -1,0 +1,72 @@
+# =============================================================
+# docker-compose.yml – Workout Plan Management System
+# Services: MySQL 8 + Spring Boot Application
+# =============================================================
+
+version: '3.9'
+
+services:
+
+  # ----------------------------------------------------------------
+  # MySQL 8 Database
+  # ----------------------------------------------------------------
+  db:
+    image: mysql:8.0
+    container_name: workout-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: workout_db
+      MYSQL_USER: ${DB_USERNAME:-workout_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-workout_pass}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_secret}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - workout-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-root_secret}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ----------------------------------------------------------------
+  # Spring Boot Application
+  # ----------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: workout-plan-system:${APP_VERSION:-latest}
+    container_name: workout-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://db:3306/workout_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USERNAME: ${DB_USERNAME:-workout_user}
+      DB_PASSWORD: ${DB_PASSWORD:-workout_pass}
+      SERVER_PORT: 8080
+      JAVA_OPTS: "-Xmx512m -Xms256m"
+    ports:
+      - "8080:8080"
+    networks:
+      - workout-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+networks:
+  workout-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local

@@ -1,0 +1,34 @@
+*.class
+*.jar
+*.war
+target/
+.mvn/
+!.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+.DS_Store
+
+# Environment
+.env
+*.env.local
+
+# Logs
+logs/
+*.log
+
+# Docker
+docker-data/
+
+# Selenium screenshots (keep folder structure but not screenshots)
+target/selenium-screenshots/
+
+# Credentials – never commit these
+secrets/
+*.pem
+*.key
+*.p12
