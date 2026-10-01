@@ -1,0 +1,49 @@
+# Required Jenkins Plugins – Workout Plan Management System
+#
+# Install via:
+#   Jenkins UI  → Manage Jenkins → Plugins → Available
+#   Jenkins CLI → jenkins-plugin-cli --plugin-file jenkins/plugins.txt
+#
+# Format: <plugin-id>:<version>  (omit version to get latest compatible)
+# ============================================================
+
+# --- Core Pipeline ---
+workflow-aggregator         # "Pipeline" suite (declarative + scripted)
+pipeline-stage-view         # Stage view visualization in Jenkins UI
+pipeline-graph-analysis     # Downstream/upstream pipeline graph
+
+# --- Source Control ---
+git                         # Git SCM integration
+github                      # GitHub webhook + status API integration
+github-branch-source        # Multibranch pipeline support for GitHub
+
+# --- Build / Maven ---
+maven-plugin                # Maven project type and integration
+
+# --- Test Reporting ---
+junit                       # Publish JUnit XML test results
+test-results-analyzer       # Test trend charts over builds
+
+# --- Docker ---
+docker-workflow             # docker.image(), docker.build() pipeline steps
+docker-commons              # Shared Docker utilities
+
+# --- Credentials & Security ---
+credentials                 # Credentials store (base)
+credentials-binding         # withCredentials() pipeline step
+plain-credentials           # Username/password credential type
+ssh-credentials             # SSH key credential type
+
+# --- Notifications ---
+mailer                      # Email notifications on build failure/success
+slack                       # Slack notification integration (optional)
+
+# --- Utilities ---
+timestamper                 # Add timestamps to console output
+build-timeout               # Abort builds that exceed a time limit
+ansicolor                   # ANSI colour codes in console output
+ws-cleanup                  # Clean workspace before/after builds
+copyartifact                # Copy artifacts between jobs
+
+# --- UI / UX ---
+blueocean                   # Modern Blue Ocean pipeline UI (optional but recommended)
