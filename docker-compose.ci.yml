@@ -1,0 +1,40 @@
+# =============================================================
+# docker-compose.ci.yml – throw-away stack used ONLY by CI (Jenkins / GitHub
+# Actions) to run Selenium tests against the exact image that will be deployed.
+#
+# Differences from the deployment stack: no fixed container names, no named
+# volume (data is discarded), the app is published on a random localhost port,
+# so it can never collide with or touch the real deployment.
+#
+#   docker compose -p wps-ci -f docker-compose.ci.yml --env-file ci.env up -d --wait
+# =============================================================
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: workout_db
+      MYSQL_USER: ci_user
+      MYSQL_PASSWORD: ${CI_DB_PASSWORD:?}
+      MYSQL_ROOT_PASSWORD: ${CI_DB_ROOT_PASSWORD:?}
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysqladmin ping -h localhost -u root --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  app:
+    image: ${APP_IMAGE:?}:${APP_VERSION:?}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://db:3306/workout_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USERNAME: ci_user
+      DB_PASSWORD: ${CI_DB_PASSWORD:?}
+      APP_ADMIN_PASSWORD: ${CI_ADMIN_PASSWORD:?}
+      APP_TRAINER_PASSWORD: ${CI_TRAINER_PASSWORD:?}
+    ports:
+      - "127.0.0.1::8080"

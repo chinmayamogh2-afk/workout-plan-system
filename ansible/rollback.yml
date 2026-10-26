@@ -1,0 +1,29 @@
+---
+# =============================================================
+# Roll back to a previously built image version.
+#   ansible-playbook rollback.yml -e rollback_version=1.0.41 -e @secrets.yml
+# The app role deploys that version, verifies health, and if even that fails
+# restores whatever was running before this run.
+# =============================================================
+
+- name: Roll back Workout Plan Management System
+  hosts: "{{ target_hosts | default('local') }}"
+  become: "{{ use_become }}"
+  gather_facts: true
+
+  pre_tasks:
+    - name: Require an explicit version to roll back to
+      ansible.builtin.assert:
+        that:
+          - rollback_version is defined
+          - rollback_version | length > 0
+          - rollback_version != 'latest'
+        fail_msg: "Pass the version to restore, e.g. -e rollback_version=1.0.41"
+
+    - name: Select the rollback version for the deployment
+      ansible.builtin.set_fact:
+        app_version: "{{ rollback_version }}"
+
+  roles:
+    - preflight
+    - role: app

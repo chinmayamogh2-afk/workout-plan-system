@@ -1,38 +1,24 @@
 ---
 # =============================================================
 # Ansible Playbook – Workout Plan Management System
-# Configures: Java, Docker, Docker Compose, Application
-# Demonstrates idempotency: running twice produces no changes
+# Provisions: common packages, Java, Docker + Compose plugin, and deploys
+# the application image with health verification and automatic recovery.
+#
+#   ansible-playbook playbook.yml -e @secrets.yml --ask-become-pass
+#   ansible-playbook playbook.yml -e target_hosts=app_servers -e @secrets.yml
+#   ansible-playbook playbook.yml --syntax-check
+#
+# Idempotent: a second run reports changed=0 when nothing differs.
 # =============================================================
 
 - name: Configure Workout Plan Management System
-  hosts: local
-  become: false   # Set to true for remote servers requiring sudo
+  hosts: "{{ target_hosts | default('local') }}"
+  become: "{{ use_become }}"
   gather_facts: true
 
-  vars_files:
-    - group_vars/all.yml
-
   roles:
+    - preflight
     - common
     - java
     - docker
     - app
-
-  post_tasks:
-    - name: Run health check
-      uri:
-        url: "http://localhost:{{ app_port }}/actuator/health"
-        method: GET
-        status_code: 200
-        timeout: 30
-      register: health_result
-      retries: 6
-      delay: 15
-      until: health_result.status == 200
-      tags: [health, verify]
-
-    - name: Display health check result
-      debug:
-        msg: "✅ Application is healthy: {{ health_result.json }}"
-      tags: [health, verify]

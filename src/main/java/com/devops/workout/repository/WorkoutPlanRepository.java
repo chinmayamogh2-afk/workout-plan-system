@@ -47,4 +47,27 @@ public interface WorkoutPlanRepository extends JpaRepository<WorkoutPlan, Long> 
     List<WorkoutPlan> filterPlans(@Param("status") WorkoutStatus status,
                                   @Param("difficulty") DifficultyLevel difficulty,
                                   @Param("keyword") String keyword);
+
+    // ---- Owner-scoped queries (used for trainers so data never crosses users) ----
+
+    long countByCreatedBy(String createdBy);
+
+    long countByCreatedByAndStatus(String createdBy, WorkoutStatus status);
+
+    long countByCreatedByAndDifficulty(String createdBy, DifficultyLevel difficulty);
+
+    List<WorkoutPlan> findTop5ByOrderByCreatedAtDesc();
+
+    List<WorkoutPlan> findTop5ByCreatedByOrderByCreatedAtDesc(String createdBy);
+
+    /** Same as filterPlans but restricted to one owner. */
+    @Query("SELECT w FROM WorkoutPlan w WHERE w.createdBy = :owner AND " +
+           "(:status IS NULL OR w.status = :status) AND " +
+           "(:difficulty IS NULL OR w.difficulty = :difficulty) AND " +
+           "(:keyword IS NULL OR LOWER(w.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(w.targetMuscleGroup) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    List<WorkoutPlan> filterPlansByOwner(@Param("owner") String owner,
+                                         @Param("status") WorkoutStatus status,
+                                         @Param("difficulty") DifficultyLevel difficulty,
+                                         @Param("keyword") String keyword);
 }

@@ -33,6 +33,9 @@ public class WorkoutPlanSeleniumTest {
     private WebDriverWait wait;
     private String baseUrl;
     private static final String SCREENSHOTS_DIR = "target/selenium-screenshots";
+    // Credentials come from -Dselenium.*.password (injected by CI); defaults match local dev seeds.
+    private static final String ADMIN_PASSWORD = System.getProperty("selenium.admin.password", "Admin@123");
+    private static final String TRAINER_PASSWORD = System.getProperty("selenium.trainer.password", "Trainer@123");
 
     @BeforeClass
     public void setupClass() throws IOException {
@@ -122,7 +125,7 @@ public class WorkoutPlanSeleniumTest {
         assertTrue(driver.getTitle().contains("Login"));
 
         driver.findElement(By.id("username")).sendKeys("admin");
-        driver.findElement(By.id("password")).sendKeys("Admin@123");
+        driver.findElement(By.id("password")).sendKeys(ADMIN_PASSWORD);
         captureScreenshot("Login_BeforeSubmit");
         driver.findElement(By.id("loginBtn")).click();
 
@@ -163,7 +166,7 @@ public class WorkoutPlanSeleniumTest {
 
     @Test(priority = 3, description = "Create a new workout plan as trainer")
     public void testCreateWorkoutPlan() {
-        login("trainer", "Trainer@123");
+        login("trainer", TRAINER_PASSWORD);
 
         // Navigate to create form
         driver.get(baseUrl + "/workouts/new");
@@ -206,7 +209,7 @@ public class WorkoutPlanSeleniumTest {
 
     @Test(priority = 4, description = "Search workout plans by keyword")
     public void testSearchWorkoutPlans() {
-        login("admin", "Admin@123");
+        login("admin", ADMIN_PASSWORD);
 
         driver.get(baseUrl + "/workouts");
         wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("filterForm")));
@@ -231,7 +234,7 @@ public class WorkoutPlanSeleniumTest {
 
     @Test(priority = 5, description = "Edit an existing workout plan")
     public void testEditWorkoutPlan() {
-        login("admin", "Admin@123");
+        login("admin", ADMIN_PASSWORD);
 
         // First create a plan to edit
         driver.get(baseUrl + "/workouts/new");
@@ -277,7 +280,7 @@ public class WorkoutPlanSeleniumTest {
     @Test(priority = 6, description = "Full workflow: DRAFT → SUBMITTED → APPROVED → PUBLISHED")
     public void testWorkflowTransitions() {
         // Step 1: Trainer creates & submits a plan
-        login("trainer", "Trainer@123");
+        login("trainer", TRAINER_PASSWORD);
         driver.get(baseUrl + "/workouts/new");
         wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("workoutForm")));
 
@@ -307,7 +310,7 @@ public class WorkoutPlanSeleniumTest {
         driver.findElement(By.id("logoutBtn")).click();
         wait.until(ExpectedConditions.urlContains("/login"));
 
-        login("admin", "Admin@123");
+        login("admin", ADMIN_PASSWORD);
         driver.get(planUrl);
 
         // Approve
@@ -336,7 +339,7 @@ public class WorkoutPlanSeleniumTest {
 
     @Test(priority = 7, description = "Verify dashboard shows stats after plan creation")
     public void testDashboardStats() {
-        login("admin", "Admin@123");
+        login("admin", ADMIN_PASSWORD);
 
         wait.until(ExpectedConditions.urlContains("/dashboard"));
         captureScreenshot("Dashboard_Loaded");

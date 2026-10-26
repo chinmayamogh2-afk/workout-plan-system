@@ -11,40 +11,39 @@ WORKDIR /build
 # Copy POM first for layer caching – dependencies are re-downloaded
 # only when pom.xml changes, not on every code change.
 COPY pom.xml .
-RUN mvn dependency:go-offline -q
+RUN mvn -B -q dependency:go-offline
 
-# Copy source code and build the JAR (skip Selenium tests during Docker build)
+# Build the JAR. Tests are NOT run here: unit/integration/Selenium tests run in
+# the CI pipeline BEFORE this image is built and gate the pipeline.
 COPY src ./src
-RUN mvn clean package -DskipTests -q
+RUN mvn -B -q clean package -DskipTests
 
 # Stage 2: Minimal runtime image
 FROM eclipse-temurin:21-jre-jammy
 
-LABEL maintainer="DevOps College Project"
-LABEL version="1.0.0"
-LABEL description="Dockerized Workout Plan Management System"
+ARG APP_VERSION=dev
+LABEL maintainer="DevOps College Project" \
+      version="${APP_VERSION}" \
+      description="Dockerized Workout Plan Management System"
 
-# Create a non-root user for security
-RUN groupadd -r fitflow && useradd -r -g fitflow fitflow
+# Non-root user (with a fixed UID so volume permissions are predictable)
+RUN groupadd -r -g 10001 fitflow && useradd -r -u 10001 -g fitflow -M -s /usr/sbin/nologin fitflow
 
 WORKDIR /app
 
-# Copy the built JAR from the builder stage
-COPY --from=builder /build/target/workout-plan-system-1.0.0.jar app.jar
-
-# Set ownership
-RUN chown -R fitflow:fitflow /app
+# Version-independent copy: pom.xml may change the version without breaking the build
+COPY --from=builder --chown=fitflow:fitflow /build/target/workout-plan-system-*.jar app.jar
 
 USER fitflow
 
-# Application port
 EXPOSE 8080
 
-# Health check – Docker will mark container as healthy after the endpoint responds
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+# JVM tuning for containers (heap is sized from the container memory limit)
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=75"
 
-# JVM tuning for containers
-ENV JAVA_OPTS="-Xmx512m -Xms256m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75"
+# Healthy only when the actuator reports status UP (not merely when the port answers)
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=5 \
+  CMD wget -qO- http://localhost:8080/actuator/health | grep -q '"status":"UP"' || exit 1
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+# exec => the JVM is PID 1 and receives SIGTERM for a graceful shutdown
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]

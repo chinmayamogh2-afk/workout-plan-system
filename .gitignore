@@ -32,3 +32,13 @@ secrets/
 *.pem
 *.key
 *.p12
+
+# CI-generated throw-away credentials
+ci.env
+.ci.env
+*.env
+!.env.example
+
+# Ansible secrets
+ansible/secrets.yml
+ansible/*.vault

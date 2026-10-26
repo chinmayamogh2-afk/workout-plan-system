@@ -1,0 +1,9 @@
+# Development override: build the application image from source.
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}

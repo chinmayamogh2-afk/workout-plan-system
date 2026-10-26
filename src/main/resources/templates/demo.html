@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Interactive Demo | FitFlow Workout Manager</title>
+    <meta name="description" content="Explore FitFlow's interactive demo — create plans, test the AI assistant, and understand the DevOps architecture without logging in."/>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;family=Outfit:wght@300;400;500;600;700;800&amp;display=swap"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+</head>
+<body class="demo-page" id="demoPage">
+
+<!-- Demo Header / Hero -->
+<div class="demo-hero">
+    <div class="demo-hero-content">
+        <div class="demo-label">🎯 Interactive Demo</div>
+        <h1>Experience FitFlow in Action</h1>
+        <p>
+            Walk through the complete Workout Plan Management System — create plans, search and filter,
+            advance through the approval workflow, interact with the AI assistant, and explore the DevOps
+            architecture. <strong>No login required.</strong> All data is isolated from production records.
+        </p>
+        <div class="demo-hero-actions">
+            <a th:href="@{/login}" class="btn btn-primary btn-lg" id="loginCTA">🔑 Sign In to Real App</a>
+            <button class="btn btn-secondary btn-lg" onclick="scrollToDemo()" id="startDemoBtn">▶ Start Walkthrough</button>
+        </div>
+    </div>
+
+    <!-- Live badge row -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:32px" id="demoStats">
+        <div style="padding:8px 16px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:20px;font-size:12px;font-weight:600">
+            🐳 Docker + MySQL
+        </div>
+        <div style="padding:8px 16px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:20px;font-size:12px;font-weight:600">
+            ⚙️ Jenkins CI/CD
+        </div>
+        <div style="padding:8px 16px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:20px;font-size:12px;font-weight:600">
+            📜 Ansible Automation
+        </div>
+        <div style="padding:8px 16px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:20px;font-size:12px;font-weight:600">
+            🧪 Selenium Tests
+        </div>
+        <div style="padding:8px 16px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:20px;font-size:12px;font-weight:600">
+            🔐 Role-Based Security
+        </div>
+        <div style="padding:8px 16px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:20px;font-size:12px;font-weight:600;color:#4ade80">
+            ✅ Spring Boot 3.2
+        </div>
+    </div>
+</div>
+
+<!-- Demo Navigation -->
+<nav class="demo-nav" id="demoNav" role="tablist">
+    <button class="demo-tab active" data-target="demoDashboard" role="tab" id="tab-dashboard">
+        <span class="demo-tab-num">1</span> Dashboard
+    </button>
+    <button class="demo-tab" data-target="demoCreate" role="tab" id="tab-create">
+        <span class="demo-tab-num">2</span> Create Plan
+    </button>
+    <button class="demo-tab" data-target="demoSearch" role="tab" id="tab-search">
+        <span class="demo-tab-num">3</span> Search &amp; Filter
+    </button>
+    <button class="demo-tab" data-target="demoWorkflow" role="tab" id="tab-workflow">
+        <span class="demo-tab-num">4</span> Status Workflow
+    </button>
+    <button class="demo-tab" data-target="demoAI" role="tab" id="tab-ai">
+        <span class="demo-tab-num">5</span> AI Assistant
+    </button>
+    <button class="demo-tab" data-target="demoArch" role="tab" id="tab-arch">
+        <span class="demo-tab-num">6</span> DevOps Architecture
+    </button>
+</nav>
+
+<!-- Demo Content -->
+<div class="demo-content" id="demoContent">
+
+    <!-- ===== STEP 1: Dashboard ===== -->
+    <div class="demo-section active" id="demoDashboard" role="tabpanel">
+        <div class="demo-section-header">
+            <div class="demo-section-tag">📊 Step 1</div>
+            <h2 class="demo-section-title">Dashboard Overview</h2>
+            <p class="demo-section-desc">
+                The dashboard shows real-time statistics about your workout plans across all lifecycle stages.
+                Admins see system-wide data; trainers see only their own plans.
+                <strong>These are pre-loaded demo records — no real database records are modified.</strong>
+            </p>
+        </div>
+
+        <!-- Demo stat cards -->
+        <div class="demo-stats-grid">
+            <div class="stat-card stat-total">
+                <div class="stat-icon-wrap">📋</div>
+                <div><div class="stat-number" id="demo-stat-total">6</div><div class="stat-label">Total Plans</div></div>
+            </div>
+            <div class="stat-card stat-draft">
+                <div class="stat-icon-wrap">📝</div>
+                <div><div class="stat-number" id="demo-stat-draft">1</div><div class="stat-label">Draft</div></div>
+            </div>
+            <div class="stat-card stat-submitted">
+                <div class="stat-icon-wrap">📤</div>
+                <div><div class="stat-number" id="demo-stat-submitted">2</div><div class="stat-label">Submitted</div></div>
+            </div>
+            <div class="stat-card stat-approved">
+                <div class="stat-icon-wrap">✅</div>
+                <div><div class="stat-number" id="demo-stat-approved">2</div><div class="stat-label">Approved</div></div>
+            </div>
+            <div class="stat-card stat-published">
+                <div class="stat-icon-wrap">🚀</div>
+                <div><div class="stat-number" id="demo-stat-published">1</div><div class="stat-label">Published</div></div>
+            </div>
+        </div>
+
+        <div style="margin-bottom:28px">
+            <div class="section-header">
+                <h3 class="section-title">📌 Demo Plan Records</h3>
+                <span style="font-size:12px;color:var(--text-muted);background:rgba(249,115,22,0.15);border:1px solid rgba(249,115,22,0.3);padding:4px 12px;border-radius:20px;font-weight:600;color:var(--accent)">⚡ Demo Data — Not Saved to DB</span>
+            </div>
+            <div id="demoRecentPlans" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
+
+        <button class="btn btn-primary" onclick="switchTab('demoCreate')" id="nextToDemoCreate">Next: Create a Plan →</button>
+    </div>
+
+    <!-- ===== STEP 2: Create Plan ===== -->
+    <div class="demo-section" id="demoCreate" role="tabpanel">
+        <div class="demo-section-header">
+            <div class="demo-section-tag">➕ Step 2</div>
+            <h2 class="demo-section-title">Create a Workout Plan</h2>
+            <p class="demo-section-desc">
+                Fill out the form below to add a new demo plan. Inputs are validated using the same rules
+                as the real application. The plan will appear in the dashboard stats above.
+                <strong>No data is saved to the production database.</strong>
+            </p>
+        </div>
+
+        <div id="demoCreateSuccess"></div>
+
+        <div class="demo-cols">
+            <div class="demo-form-panel">
+                <h3>📋 New Plan Form</h3>
+                <form id="demoCreateForm" novalidate>
+
+                    <div class="form-row" style="margin-bottom:0">
+                        <div class="form-group">
+                            <label class="form-label" for="demoName">Workout Name <span class="required">*</span></label>
+                            <input type="text" id="demoName" class="form-input"
+                                   placeholder="e.g., Morning Power Circuit"
+                                   minlength="3" maxlength="150" required/>
+                            <div class="form-hint">Min 3 characters</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="demoTrainer">Trainer Name <span class="required">*</span></label>
+                            <input type="text" id="demoTrainer" class="form-input"
+                                   placeholder="e.g., Alex Johnson" required/>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="demoDesc">Description</label>
+                        <textarea id="demoDesc" class="form-input form-textarea" rows="3"
+                                  placeholder="Describe the workout goals and target audience…"></textarea>
+                    </div>
+
+                    <div class="form-row" style="margin-bottom:0">
+                        <div class="form-group">
+                            <label class="form-label" for="demoDuration">Duration (min) <span class="required">*</span></label>
+                            <input type="number" id="demoDuration" class="form-input"
+                                   placeholder="e.g., 45" min="1" max="600" required/>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="demoDifficulty">Difficulty <span class="required">*</span></label>
+                            <select id="demoDifficulty" class="form-input">
+                                <option value="">— Select —</option>
+                                <option value="BEGINNER">BEGINNER</option>
+                                <option value="INTERMEDIATE">INTERMEDIATE</option>
+                                <option value="ADVANCED">ADVANCED</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="demoMuscle">Muscle Group <span class="required">*</span></label>
+                            <input type="text" id="demoMuscle" class="form-input" placeholder="e.g., Full Body"/>
+                        </div>
+                    </div>
+
+                    <div style="display:flex;gap:10px;margin-top:8px">
+                        <button type="submit" class="btn btn-primary" id="demoSubmitBtn">💾 Add Demo Plan</button>
+                        <button type="reset" class="btn btn-secondary" id="demoClearBtn">✖ Clear</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="demo-preview-panel">
+                <h3>👁️ Live Preview</h3>
+                <div class="preview-field">
+                    <div class="preview-label">Plan Name</div>
+                    <div class="preview-value empty" id="previewName">Not entered yet</div>
+                </div>
+                <div class="preview-field">
+                    <div class="preview-label">Difficulty</div>
+                    <div class="preview-value empty" id="previewDifficulty">Not selected</div>
+                </div>
+                <div class="preview-field">
+                    <div class="preview-label">Duration</div>
+                    <div class="preview-value empty" id="previewDuration">Not entered</div>
+                </div>
+                <div class="preview-field">
+                    <div class="preview-label">Muscle Group</div>
+                    <div class="preview-value empty" id="previewMuscle">Not entered</div>
+                </div>
+                <div class="preview-field">
+                    <div class="preview-label">Initial Status</div>
+                    <div class="preview-value" id="previewStatus">DRAFT ← new plans start here</div>
+                </div>
+
+                <div style="margin-top:20px;padding:14px;background:rgba(124,111,255,0.08);border:1px solid rgba(124,111,255,0.2);border-radius:var(--radius-sm)">
+                    <p style="font-size:12px;color:var(--text-secondary);line-height:1.6">
+                        💡 In the real application, this plan would be saved to the MySQL database and
+                        assigned to your user account. Trainers can then submit it to Admin for review.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top:28px">
+            <button class="btn btn-secondary" onclick="switchTab('demoDashboard')" id="prevToDemo1">← Back</button>
+            <button class="btn btn-primary" onclick="switchTab('demoSearch')" id="nextToDemoSearch" style="margin-left:10px">Next: Search &amp; Filter →</button>
+        </div>
+    </div>
+
+    <!-- ===== STEP 3: Search & Filter ===== -->
+    <div class="demo-section" id="demoSearch" role="tabpanel">
+        <div class="demo-section-header">
+            <div class="demo-section-tag">🔍 Step 3</div>
+            <h2 class="demo-section-title">Search &amp; Filter Plans</h2>
+            <p class="demo-section-desc">
+                Search by plan name or muscle group and filter by status or difficulty level.
+                Results update instantly as you type. Try searching "HIIT" or filtering to "PUBLISHED" plans.
+            </p>
+        </div>
+
+        <div class="demo-search-panel">
+            <div class="filter-card">
+                <div class="filter-grid">
+                    <div class="form-group" style="margin-bottom:0">
+                        <label class="form-label" for="demoSearchInput">Search</label>
+                        <div class="search-wrapper">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="demoSearchInput" class="form-input"
+                                   placeholder="Search name or muscle group…" autocomplete="off"/>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label class="form-label" for="demoStatusFilter">Status</label>
+                        <select id="demoStatusFilter" class="form-input">
+                            <option value="">All Statuses</option>
+                            <option value="DRAFT">DRAFT</option>
+                            <option value="SUBMITTED">SUBMITTED</option>
+                            <option value="APPROVED">APPROVED</option>
+                            <option value="PUBLISHED">PUBLISHED</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label class="form-label" for="demoDiffFilter">Difficulty</label>
+                        <select id="demoDiffFilter" class="form-input">
+                            <option value="">All Levels</option>
+                            <option value="BEGINNER">BEGINNER</option>
+                            <option value="INTERMEDIATE">INTERMEDIATE</option>
+                            <option value="ADVANCED">ADVANCED</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-secondary" id="demoSearchClear">✖ Clear</button>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-bottom:12px;font-size:13px;color:var(--text-muted);font-weight:500" id="demoResultCount"></div>
+            <div id="demoSearchResults" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
+
+        <div style="margin-top:28px">
+            <button class="btn btn-secondary" onclick="switchTab('demoCreate')" id="prevToDemo2">← Back</button>
+            <button class="btn btn-primary" onclick="switchTab('demoWorkflow')" id="nextToDemoWf" style="margin-left:10px">Next: Status Workflow →</button>
+        </div>
+    </div>
+
+    <!-- ===== STEP 4: Workflow ===== -->
+    <div class="demo-section" id="demoWorkflow" role="tabpanel">
+        <div class="demo-section-header">
+            <div class="demo-section-tag">🔄 Step 4</div>
+            <h2 class="demo-section-title">Status Workflow</h2>
+            <p class="demo-section-desc">
+                Workout plans move through a role-based approval pipeline:
+                <strong>DRAFT → SUBMITTED → APPROVED → PUBLISHED</strong>.
+                Trainers can submit; only Admins can approve, reject, or publish.
+                Select a plan below and advance it through the workflow.
+            </p>
+        </div>
+
+        <!-- Workflow rules callout -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px">
+            <div style="text-align:center;padding:16px;background:var(--glass-bg);border:1px solid var(--border);border-radius:var(--radius-sm)">
+                <div style="font-size:24px;margin-bottom:8px">📝</div>
+                <div style="font-weight:700;font-size:13px;margin-bottom:4px">DRAFT</div>
+                <div style="font-size:11px;color:var(--text-muted)">Created, being edited. Trainer or Admin can submit.</div>
+            </div>
+            <div style="text-align:center;padding:16px;background:var(--glass-bg);border:1px solid var(--border);border-radius:var(--radius-sm)">
+                <div style="font-size:24px;margin-bottom:8px">📤</div>
+                <div style="font-weight:700;font-size:13px;margin-bottom:4px">SUBMITTED</div>
+                <div style="font-size:11px;color:var(--text-muted)">Awaiting Admin review. Can be approved or rejected.</div>
+            </div>
+            <div style="text-align:center;padding:16px;background:var(--glass-bg);border:1px solid var(--border);border-radius:var(--radius-sm)">
+                <div style="font-size:24px;margin-bottom:8px">✅</div>
+                <div style="font-weight:700;font-size:13px;margin-bottom:4px">APPROVED</div>
+                <div style="font-size:11px;color:var(--text-muted)">Admin-approved. Ready to publish to all users.</div>
+            </div>
+            <div style="text-align:center;padding:16px;background:var(--glass-bg);border:1px solid var(--border);border-radius:var(--radius-sm)">
+                <div style="font-size:24px;margin-bottom:8px">🚀</div>
+                <div style="font-weight:700;font-size:13px;margin-bottom:4px">PUBLISHED</div>
+                <div style="font-size:11px;color:var(--text-muted)">Live. Visible to all users. Terminal state.</div>
+            </div>
+        </div>
+
+        <div class="demo-cols">
+            <div>
+                <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;font-family:'Outfit',sans-serif">Select a Plan</h3>
+                <div class="demo-wf-plan-selector" id="demoWfSelector"></div>
+            </div>
+            <div id="demoWfDetail">
+                <div class="demo-workflow-card" style="display:flex;align-items:center;justify-content:center;padding:60px;color:var(--text-muted)">
+                    ← Select a plan to see its workflow
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top:28px">
+            <button class="btn btn-secondary" onclick="switchTab('demoSearch')" id="prevToDemo3">← Back</button>
+            <button class="btn btn-primary" onclick="switchTab('demoAI')" id="nextToDemoAI" style="margin-left:10px">Next: AI Assistant →</button>
+        </div>
+    </div>
+
+    <!-- ===== STEP 5: AI Assistant ===== -->
+    <div class="demo-section" id="demoAI" role="tabpanel">
+        <div class="demo-section-header">
+            <div class="demo-section-tag">🤖 Step 5</div>
+            <h2 class="demo-section-title">AI Workout Assistant</h2>
+            <p class="demo-section-desc">
+                FitBot is a fitness AI assistant powered by a deterministic demo engine — no external AI credentials required.
+                Ask for workout plans, exercise advice, nutrition tips, or help with the workflow.
+                In production, this would connect to a real AI API with credentials stored server-side.
+            </p>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:28px">
+            <!-- Quick prompt cards -->
+            <div>
+                <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;font-family:'Outfit',sans-serif">💡 Try These Prompts</h3>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                    <div class="demo-plan-card" onclick="sendDemoPrompt('Create a beginner workout plan for weight loss')" id="prompt1">
+                        <div style="font-weight:700;font-size:14px;margin-bottom:6px">🌱 Beginner Weight Loss</div>
+                        <div style="font-size:12px;color:var(--text-muted)">"Create a beginner workout plan for weight loss"</div>
+                    </div>
+                    <div class="demo-plan-card" onclick="sendDemoPrompt('What are the best exercises for chest and back?')" id="prompt2">
+                        <div style="font-weight:700;font-size:14px;margin-bottom:6px">💪 Muscle Groups</div>
+                        <div style="font-size:12px;color:var(--text-muted)">"What are the best exercises for chest and back?"</div>
+                    </div>
+                    <div class="demo-plan-card" onclick="sendDemoPrompt('How much protein do I need per day?')" id="prompt3">
+                        <div style="font-weight:700;font-size:14px;margin-bottom:6px">🥗 Nutrition Advice</div>
+                        <div style="font-size:12px;color:var(--text-muted)">"How much protein do I need per day?"</div>
+                    </div>
+                    <div class="demo-plan-card" onclick="sendDemoPrompt('Design an advanced powerlifting programme')" id="prompt4">
+                        <div style="font-weight:700;font-size:14px;margin-bottom:6px">🔥 Advanced Powerlifting</div>
+                        <div style="font-size:12px;color:var(--text-muted)">"Design an advanced powerlifting programme"</div>
+                    </div>
+                    <div class="demo-plan-card" onclick="sendDemoPrompt('How does the workflow status system work?')" id="prompt5">
+                        <div style="font-weight:700;font-size:14px;margin-bottom:6px">🔄 Workflow Help</div>
+                        <div style="font-size:12px;color:var(--text-muted)">"How does the workflow status system work?"</div>
+                    </div>
+                </div>
+
+                <div style="margin-top:18px;padding:14px;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.25);border-radius:var(--radius-sm)">
+                    <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px">⚡ Demo Mode Notice</div>
+                    <div style="font-size:12px;color:var(--text-muted);line-height:1.7">
+                        FitBot responses are pre-programmed for demonstration purposes.
+                        In production, this would use a real LLM API (e.g., OpenAI GPT or Google Gemini)
+                        with credentials stored securely in server-side environment variables —
+                        never exposed to the frontend.
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Chat Panel -->
+            <div class="ai-panel" id="demoAiPanel">
+                <div class="ai-panel-header">
+                    <div class="ai-avatar">🤖</div>
+                    <div>
+                        <div class="ai-name">FitBot Assistant</div>
+                        <div class="ai-status">Online</div>
+                    </div>
+                    <span class="ai-mode-badge">Demo Mode</span>
+                </div>
+                <div class="ai-messages" id="aiMessages" role="log" aria-live="polite"></div>
+                <div class="ai-suggestions">
+                    <button class="ai-chip">Beginner plan</button>
+                    <button class="ai-chip">Weight loss tips</button>
+                    <button class="ai-chip">Protein intake</button>
+                    <button class="ai-chip">Workflow help</button>
+                </div>
+                <div class="ai-input-area">
+                    <textarea class="ai-input" id="aiInput" placeholder="Ask FitBot anything about fitness or FitFlow…" rows="1"></textarea>
+                    <button class="ai-send" id="aiSend">➤</button>
+                </div>
+                <div style="padding:8px 20px;border-top:1px solid var(--border);text-align:right">
+                    <button class="ai-clear" id="aiClear">↺ New chat</button>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top:28px">
+            <button class="btn btn-secondary" onclick="switchTab('demoWorkflow')" id="prevToDemo4">← Back</button>
+            <button class="btn btn-primary" onclick="switchTab('demoArch')" id="nextToDemoArch" style="margin-left:10px">Next: DevOps Architecture →</button>
+        </div>
+    </div>
+
+    <!-- ===== STEP 6: DevOps Architecture ===== -->
+    <div class="demo-section" id="demoArch" role="tabpanel">
+        <div class="demo-section-header">
+            <div class="demo-section-tag">🏗️ Step 6</div>
+            <h2 class="demo-section-title">DevOps Architecture</h2>
+            <p class="demo-section-desc">
+                Click any component below to learn about its role in the FitFlow system.
+                Green borders indicate components that are fully implemented in the repository.
+                Components marked as "Planned" represent integrations that are configured but not fully deployed in this environment.
+            </p>
+        </div>
+
+        <div class="arch-diagram">
+            <!-- Pipeline flow -->
+            <div class="arch-pipeline">
+                <div class="arch-node exists" id="arch-git" tabindex="0" role="button" aria-label="GitHub source control">
+                    <div class="arch-node-icon">📁</div>
+                    <div class="arch-node-label">GitHub</div>
+                    <span class="arch-node-tag tag-exists">✅ Live</span>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-node exists" id="arch-jenkins" tabindex="0" role="button" aria-label="Jenkins CI/CD">
+                    <div class="arch-node-icon">⚙️</div>
+                    <div class="arch-node-label">Jenkins</div>
+                    <span class="arch-node-tag tag-exists">✅ Live</span>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-node exists" id="arch-docker" tabindex="0" role="button" aria-label="Docker containers">
+                    <div class="arch-node-icon">🐳</div>
+                    <div class="arch-node-label">Docker</div>
+                    <span class="arch-node-tag tag-exists">✅ Live</span>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-node exists" id="arch-tests" tabindex="0" role="button" aria-label="Automated tests">
+                    <div class="arch-node-icon">🧪</div>
+                    <div class="arch-node-label">Tests</div>
+                    <span class="arch-node-tag tag-exists">✅ Live</span>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-node exists" id="arch-ansible" tabindex="0" role="button" aria-label="Ansible configuration">
+                    <div class="arch-node-icon">📜</div>
+                    <div class="arch-node-label">Ansible</div>
+                    <span class="arch-node-tag tag-exists">✅ Live</span>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-node exists" id="arch-app" tabindex="0" role="button" aria-label="Spring Boot application">
+                    <div class="arch-node-icon">☕</div>
+                    <div class="arch-node-label">Spring Boot</div>
+                    <span class="arch-node-tag tag-exists">✅ Live</span>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-node exists" id="arch-db" tabindex="0" role="button" aria-label="MySQL database">
+                    <div class="arch-node-icon">🗄️</div>
+                    <div class="arch-node-label">MySQL 8</div>
+                    <span class="arch-node-tag tag-exists">✅ Live</span>
+                </div>
+            </div>
+
+            <!-- Info panel -->
+            <div class="arch-info" id="archInfo" role="region" aria-live="polite">
+                <p style="color:var(--text-muted);font-size:13px">👆 Click a component above to learn about it.</p>
+            </div>
+
+            <!-- Legend -->
+            <div style="display:flex;gap:16px;margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted)">
+                    <span style="width:12px;height:12px;border-radius:50%;background:var(--success);display:inline-block"></span>
+                    Fully implemented in repository
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted)">
+                    <span style="width:12px;height:12px;border-radius:50%;background:var(--warning);display:inline-block"></span>
+                    Planned / partially configured
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top:28px;display:flex;gap:12px;flex-wrap:wrap">
+            <button class="btn btn-secondary" onclick="switchTab('demoAI')" id="prevToDemo5">← Back</button>
+            <a th:href="@{/login}" class="btn btn-primary" id="finalLoginCTA">🔑 Sign In to Real App</a>
+            <button class="btn btn-secondary" onclick="document.getElementById('demoResetBtn').click()" id="restartDemo">↺ Reset &amp; Restart Demo</button>
+        </div>
+    </div>
+</div>
+
+<!-- Demo Reset Bar -->
+<div class="demo-reset-bar">
+    <div class="demo-indicator"></div>
+    <span class="demo-reset-text">📊 Interactive Demo — data is isolated from production</span>
+    <button class="btn btn-secondary btn-sm" id="demoResetBtn">↺ Reset Demo</button>
+    <a th:href="@{/login}" class="btn btn-primary btn-sm" id="loginFromBar">Sign In →</a>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+  // Tab switching helper exposed globally for demo buttons
+  function switchTab(targetId) {
+    document.querySelectorAll('.demo-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.demo-section').forEach(s => s.classList.remove('active'));
+    const section = document.getElementById(targetId);
+    if (section) section.classList.add('active');
+    // Find the tab that points to this target
+    const tab = document.querySelector(`[data-target="${targetId}"]`);
+    if (tab) tab.classList.add('active');
+    window.scrollTo({ top: document.getElementById('demoContent').offsetTop - 70, behavior: 'smooth' });
+  }
+  window.switchTab = switchTab;
+
+  function scrollToDemo() {
+    document.getElementById('demoContent').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  window.scrollToDemo = scrollToDemo;
+
+  function sendDemoPrompt(text) {
+    const input = document.getElementById('aiInput');
+    if (input) {
+      input.value = text;
+      switchTab('demoAI');
+      setTimeout(() => {
+        const sendBtn = document.getElementById('aiSend');
+        sendBtn?.click();
+      }, 300);
+    }
+  }
+  window.sendDemoPrompt = sendDemoPrompt;
+</script>
+<script th:src="@{/js/main.js}"></script>
+</body>
+</html>

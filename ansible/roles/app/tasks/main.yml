@@ -1,58 +1,115 @@
 ---
-# =============================================================
-# Role: app – Deploy Workout Plan System via Docker Compose
-# Idempotent: uses docker-compose up which handles re-runs
-# =============================================================
+# Role: app – deploy the application with Docker Compose.
+# Sequence: write config -> validate -> record running version -> start DB ->
+# deploy app -> verify health -> on failure restore the previous version.
+# The app container is recreated in place, so there is a brief outage during
+# the switch (this is not a zero-downtime deployment).
 
-- name: Copy docker-compose.yml to app directory
-  copy:
+- name: Install compose file
+  ansible.builtin.copy:
     src: "{{ playbook_dir }}/../docker-compose.yml"
     dest: "{{ app_dir }}/docker-compose.yml"
-    mode: '0644'
-  tags: [app, deploy]
+    mode: "0644"
+  tags: [app, config, deploy]
 
-- name: Copy env file template
-  template:
+- name: Install database init script (mounted by the compose file)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../scripts/init.sql"
+    dest: "{{ app_dir }}/scripts/init.sql"
+    mode: "0644"
+  tags: [app, config, deploy]
+
+- name: Write environment file (contains secrets)
+  ansible.builtin.template:
     src: env.j2
     dest: "{{ app_dir }}/.env"
-    mode: '0600'
-  tags: [app, deploy]
+    mode: "0600"
+  no_log: true
+  tags: [app, config, deploy]
 
-- name: Pull latest Docker images
-  command: docker compose pull
+- name: Validate the compose configuration
+  ansible.builtin.command: docker compose config --quiet
   args:
     chdir: "{{ app_dir }}"
-  register: pull_result
-  changed_when: "'Pulled' in pull_result.stdout"
-  ignore_errors: true
+  changed_when: false
   tags: [app, deploy]
 
-- name: Start application with Docker Compose
-  command: docker compose up -d --remove-orphans
-  args:
-    chdir: "{{ app_dir }}"
-  register: compose_result
-  changed_when: compose_result.rc == 0
+- name: Record the currently deployed image (if any)
+  ansible.builtin.command: docker inspect --format '{% raw %}{{.Config.Image}}{% endraw %}' workout-app
+  register: app_current_image
+  failed_when: false
+  changed_when: false
   tags: [app, deploy]
 
-- name: Wait for application to be healthy
-  uri:
-    url: "http://localhost:{{ app_port }}/actuator/health"
-    method: GET
-    status_code: 200
-  register: health_check
-  retries: 12
-  delay: 10
-  until: health_check.status == 200
-  tags: [app, health]
+- name: Remember the previous version
+  ansible.builtin.set_fact:
+    app_previous_version: "{{ (app_current_image.stdout | trim).split(':') | last if app_current_image.rc == 0 else '' }}"
+  tags: [app, deploy]
 
-- name: Display running containers
-  command: docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-  register: containers_list
+- name: Deploy with automatic recovery
+  tags: [app, deploy, health]
+  block:
+    - name: Start the database and wait until healthy
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        services: [db]
+        state: present
+        wait: true
+        wait_timeout: 120
+
+    - name: Deploy the application image and wait until the container is healthy
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        services: [app]
+        dependencies: false
+        state: present
+        pull: missing
+        wait: true
+        wait_timeout: 240
+      register: app_deploy_result
+
+    - name: Verify the application health endpoint reports UP
+      ansible.builtin.uri:
+        url: "http://{{ ansible_host | default(inventory_hostname) }}:{{ app_port }}/actuator/health"
+        return_content: true
+        timeout: 10
+      delegate_to: localhost
+      become: false
+      register: app_health
+      until: app_health.status == 200 and (app_health.json.status | default('')) == 'UP'
+      retries: 12
+      delay: 10
+      changed_when: false
+
+  rescue:
+    - name: Restore the previous version
+      ansible.builtin.command: docker compose up -d --no-deps --wait --wait-timeout 240 app
+      args:
+        chdir: "{{ app_dir }}"
+      environment:
+        APP_VERSION: "{{ app_previous_version }}"
+      changed_when: true
+      when:
+        - app_previous_version | length > 0
+        - app_previous_version != app_version
+      register: app_restore_result
+
+    - name: Report failure and stop
+      ansible.builtin.fail:
+        msg: >-
+          Deployment of {{ app_image }}:{{ app_version }} failed health verification.
+          {{ 'Previous version ' ~ app_previous_version ~ ' was restored.'
+             if (app_restore_result is defined and app_restore_result is not skipped and app_restore_result.rc | default(1) == 0)
+             else 'No previous version could be restored (first deployment or restore failed).' }}
+          Check: docker logs workout-app
+
+- name: Show running containers
+  ansible.builtin.command: docker ps --filter name=workout- --format '{% raw %}{{.Names}}  {{.Status}}  {{.Ports}}{% endraw %}'
+  register: app_containers_list
   changed_when: false
   tags: [app]
 
-- name: Show running containers
-  debug:
-    msg: "{{ containers_list.stdout_lines }}"
+- name: Report deployment result
+  ansible.builtin.debug:
+    msg: "{{ app_containers_list.stdout_lines }}"
   tags: [app]

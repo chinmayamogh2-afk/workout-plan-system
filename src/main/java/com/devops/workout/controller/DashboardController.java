@@ -2,6 +2,7 @@ package com.devops.workout.controller;
 
 import com.devops.workout.service.WorkoutPlanService;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,12 +26,9 @@ public class DashboardController {
 
     @GetMapping("/dashboard")
     public String dashboard(Authentication auth, Model model) {
-        model.addAttribute("stats", service.getDashboardStats());
-        model.addAttribute("recentPlans", service.getAllPlans()
-                .stream()
-                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
-                .limit(5)
-                .toList());
+        boolean isAdmin = auth.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        model.addAttribute("stats", service.getDashboardStats(auth.getName(), isAdmin));
+        model.addAttribute("recentPlans", service.getRecentPlans(auth.getName(), isAdmin));
         model.addAttribute("username", auth.getName());
         return "dashboard";
     }

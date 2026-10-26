@@ -40,7 +40,7 @@ public class WorkoutPlanService {
         return repository.save(plan);
     }
 
-    /** Return all plans (admin view). */
+    /** Return ALL plans. Unscoped: callers must restrict this to administrators. */
     @Transactional(readOnly = true)
     public List<WorkoutPlan> getAllPlans() {
         return repository.findAll();
@@ -60,13 +60,30 @@ public class WorkoutPlanService {
                         "Workout plan not found with id: " + id));
     }
 
+    /** Find a plan the caller is allowed to see (owner or admin), else AccessDeniedException. */
+    @Transactional(readOnly = true)
+    public WorkoutPlan getPlanForUser(Long id, String requestingUser, boolean isAdmin) {
+        WorkoutPlan plan = getPlanById(id);
+        assertOwnerOrAdmin(plan, requestingUser, isAdmin, "You do not have access to this workout plan.");
+        return plan;
+    }
+
+    /** Find a plan the caller may edit (owner or admin; trainers cannot edit PUBLISHED plans). */
+    @Transactional(readOnly = true)
+    public WorkoutPlan getEditablePlan(Long id, String requestingUser, boolean isAdmin) {
+        WorkoutPlan plan = getPlanById(id);
+        assertOwnerOrAdmin(plan, requestingUser, isAdmin, "You can only edit your own workout plans.");
+        if (plan.getStatus() == WorkoutStatus.PUBLISHED && !isAdmin) {
+            throw new InvalidStatusTransitionException("Published plans cannot be edited by trainers.");
+        }
+        return plan;
+    }
+
     /** Update an existing plan. Only the owner or an admin may edit. */
     public WorkoutPlan updatePlan(Long id, WorkoutPlanDto dto, String requestingUser, boolean isAdmin) {
         WorkoutPlan existing = getPlanById(id);
 
-        if (!isAdmin && !existing.getCreatedBy().equals(requestingUser)) {
-            throw new AccessDeniedException("You can only edit your own workout plans.");
-        }
+        assertOwnerOrAdmin(existing, requestingUser, isAdmin, "You can only edit your own workout plans.");
         if (existing.getStatus() == WorkoutStatus.PUBLISHED && !isAdmin) {
             throw new InvalidStatusTransitionException("Published plans cannot be edited by trainers.");
         }
@@ -85,8 +102,9 @@ public class WorkoutPlanService {
     /** Delete a plan. Only the owner (while in DRAFT) or admin. */
     public void deletePlan(Long id, String requestingUser, boolean isAdmin) {
         WorkoutPlan plan = getPlanById(id);
-        if (!isAdmin && !plan.getCreatedBy().equals(requestingUser)) {
-            throw new AccessDeniedException("You can only delete your own workout plans.");
+        assertOwnerOrAdmin(plan, requestingUser, isAdmin, "You can only delete your own workout plans.");
+        if (!isAdmin && plan.getStatus() != WorkoutStatus.DRAFT) {
+            throw new InvalidStatusTransitionException("Trainers can only delete plans that are still in DRAFT.");
         }
         repository.deleteById(id);
     }
@@ -107,6 +125,8 @@ public class WorkoutPlanService {
     public WorkoutPlan changeStatus(Long id, WorkoutStatus newStatus,
                                     String requestingUser, boolean isAdmin) {
         WorkoutPlan plan = getPlanById(id);
+        // Authorization first: a non-owner must never learn anything about another user's plan.
+        assertOwnerOrAdmin(plan, requestingUser, isAdmin, "You can only change the status of your own plans.");
         WorkoutStatus current = plan.getStatus();
 
         if (!current.canTransitionTo(newStatus)) {
@@ -120,12 +140,6 @@ public class WorkoutPlanService {
                     "Only admins can perform this status transition.");
         }
 
-        // Only the owner can submit their own plan
-        if (newStatus == WorkoutStatus.SUBMITTED &&
-                !plan.getCreatedBy().equals(requestingUser) && !isAdmin) {
-            throw new AccessDeniedException("You can only submit your own plans.");
-        }
-
         plan.setStatus(newStatus);
         return repository.save(plan);
     }
@@ -134,6 +148,7 @@ public class WorkoutPlanService {
     //  Search / Filter                                                      //
     // ------------------------------------------------------------------ //
 
+    /** Unscoped keyword search. Administrators only; trainers must use filterPlansForUser. */
     @Transactional(readOnly = true)
     public List<WorkoutPlan> search(String keyword) {
         if (keyword == null || keyword.isBlank()) {
@@ -142,12 +157,26 @@ public class WorkoutPlanService {
         return repository.searchByKeyword(keyword.trim());
     }
 
+    /** Unscoped filter. Administrators only; trainers must use filterPlansForUser. */
     @Transactional(readOnly = true)
     public List<WorkoutPlan> filterPlans(WorkoutStatus status,
                                          DifficultyLevel difficulty,
                                          String keyword) {
         return repository.filterPlans(status, difficulty,
                 (keyword == null || keyword.isBlank()) ? null : keyword.trim());
+    }
+
+    /** Search restricted to what the caller may see. */
+    @Transactional(readOnly = true)
+    public List<WorkoutPlan> filterPlansForUser(String requestingUser, boolean isAdmin,
+                                                WorkoutStatus status,
+                                                DifficultyLevel difficulty,
+                                                String keyword) {
+        String kw = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
+        if (isAdmin) {
+            return repository.filterPlans(status, difficulty, kw);
+        }
+        return repository.filterPlansByOwner(requestingUser, status, difficulty, kw);
     }
 
     // ------------------------------------------------------------------ //
@@ -166,6 +195,43 @@ public class WorkoutPlanService {
                 .intermediateCount(repository.countByDifficulty(DifficultyLevel.INTERMEDIATE))
                 .advancedCount(repository.countByDifficulty(DifficultyLevel.ADVANCED))
                 .build();
+    }
+
+    /** Dashboard statistics limited to the caller's own plans unless admin. */
+    @Transactional(readOnly = true)
+    public DashboardStatsDto getDashboardStats(String requestingUser, boolean isAdmin) {
+        if (isAdmin) {
+            return getDashboardStats();
+        }
+        return DashboardStatsDto.builder()
+                .totalPlans(repository.countByCreatedBy(requestingUser))
+                .draftCount(repository.countByCreatedByAndStatus(requestingUser, WorkoutStatus.DRAFT))
+                .submittedCount(repository.countByCreatedByAndStatus(requestingUser, WorkoutStatus.SUBMITTED))
+                .approvedCount(repository.countByCreatedByAndStatus(requestingUser, WorkoutStatus.APPROVED))
+                .publishedCount(repository.countByCreatedByAndStatus(requestingUser, WorkoutStatus.PUBLISHED))
+                .beginnerCount(repository.countByCreatedByAndDifficulty(requestingUser, DifficultyLevel.BEGINNER))
+                .intermediateCount(repository.countByCreatedByAndDifficulty(requestingUser, DifficultyLevel.INTERMEDIATE))
+                .advancedCount(repository.countByCreatedByAndDifficulty(requestingUser, DifficultyLevel.ADVANCED))
+                .build();
+    }
+
+    /** Five most recent plans the caller may see. */
+    @Transactional(readOnly = true)
+    public List<WorkoutPlan> getRecentPlans(String requestingUser, boolean isAdmin) {
+        return isAdmin
+                ? repository.findTop5ByOrderByCreatedAtDesc()
+                : repository.findTop5ByCreatedByOrderByCreatedAtDesc(requestingUser);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Authorization helper                                                 //
+    // ------------------------------------------------------------------ //
+
+    private void assertOwnerOrAdmin(WorkoutPlan plan, String requestingUser,
+                                    boolean isAdmin, String message) {
+        if (!isAdmin && (requestingUser == null || !requestingUser.equals(plan.getCreatedBy()))) {
+            throw new AccessDeniedException(message);
+        }
     }
 
     // ------------------------------------------------------------------ //

@@ -1,0 +1,13 @@
+.git
+.github
+.vscode
+.idea
+target
+ansible
+docs
+jenkins
+scripts
+*.md
+.env
+.env.*
+*.log

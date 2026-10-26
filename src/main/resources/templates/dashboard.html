@@ -6,40 +6,32 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Dashboard | FitFlow</title>
-    <meta name="description" content="FitFlow Dashboard – Workout Plan Overview"/>
+    <meta name="description" content="FitFlow Dashboard – Your workout plan overview and statistics"/>
     <link rel="preconnect" href="https://fonts.googleapis.com"/>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;family=Outfit:wght@300;400;500;600;700;800&amp;display=swap"/>
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
 </head>
 <body>
 
-<nav class="sidebar" id="sidebar">
+<!-- Sidebar -->
+<nav class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
     <div class="sidebar-brand">
         <div class="brand-icon">💪</div>
-        <span class="brand-text">FitFlow</span>
+        <div>
+            <div class="brand-text">FitFlow</div>
+            <div class="brand-tagline">Workout Management</div>
+        </div>
     </div>
-    <ul class="sidebar-nav">
-        <li class="nav-item">
-            <a th:href="@{/dashboard}" class="nav-link active">
-                <span class="nav-icon">📊</span><span>Dashboard</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a th:href="@{/workouts}" class="nav-link">
-                <span class="nav-icon">🏋️</span><span>Workout Plans</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a th:href="@{/workouts/new}" class="nav-link">
-                <span class="nav-icon">➕</span><span>Create Plan</span>
-            </a>
-        </li>
+    <ul class="sidebar-nav" role="list">
+        <li class="nav-item"><a th:href="@{/dashboard}" class="nav-link active" id="navDash"><span class="nav-icon">📊</span><span>Dashboard</span></a></li>
+        <li class="nav-item"><a th:href="@{/workouts}" class="nav-link" id="navWorkouts"><span class="nav-icon">🏋️</span><span>Workout Plans</span></a></li>
+        <li class="nav-item"><a th:href="@{/workouts/new}" class="nav-link" id="navCreate"><span class="nav-icon">➕</span><span>Create Plan</span></a></li>
+        <li class="nav-item" style="margin-top:12px"><a th:href="@{/demo}" class="nav-link demo-link" id="navDemo"><span class="nav-icon">🚀</span><span>Explore Demo</span><span class="nav-badge">NEW</span></a></li>
     </ul>
     <div class="sidebar-footer">
         <div class="user-info">
-            <div class="user-avatar">
-                <span sec:authentication="name">U</span>
-            </div>
+            <div class="user-avatar"><span sec:authentication="name">U</span></div>
             <div class="user-details">
                 <div class="user-name" sec:authentication="name">User</div>
                 <div class="user-role">
@@ -50,66 +42,74 @@
         </div>
         <form th:action="@{/logout}" method="post" class="logout-form">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
-            <button type="submit" class="btn-logout" id="logoutBtn">🚪 Logout</button>
+            <button type="submit" class="btn-logout" id="logoutBtn"><span>🚪</span> Sign Out</button>
         </form>
     </div>
 </nav>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
 
 <div class="main-wrapper">
     <header class="topbar">
-        <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('collapsed')">☰</button>
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle navigation"><span>☰</span></button>
         <div class="topbar-title">Dashboard</div>
-        <div class="topbar-right"><span class="topbar-time" id="topbarTime"></span></div>
+        <div class="topbar-right">
+            <span class="topbar-time" id="topbarTime"></span>
+            <div class="topbar-badge" sec:authorize="hasRole('ADMIN')">🛡️ Admin</div>
+        </div>
     </header>
 
     <div class="flash-container" th:if="${successMessage != null}">
-        <div class="flash flash-success" th:text="${successMessage}"></div>
+        <div class="flash flash-success"><span class="flash-icon">✅</span><span th:text="${successMessage}"></span></div>
     </div>
 
     <main class="content">
         <!-- Welcome Banner -->
         <div class="page-header">
             <div>
-                <h1 class="page-title">Welcome back, <span th:text="${username}" class="highlight">User</span>!</h1>
-                <p class="page-subtitle">Here's your workout management overview.</p>
+                <h1 class="page-title">
+                    Welcome back,
+                    <span class="highlight" th:text="${username}">User</span>! 👋
+                </h1>
+                <p class="page-subtitle">Here's your fitness management overview for today.</p>
             </div>
-            <a th:href="@{/workouts/new}" class="btn btn-primary" id="createPlanBtn">
-                ➕ New Plan
-            </a>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <a th:href="@{/demo}" class="btn btn-cyan" id="demoEntryBtn">🚀 Explore Demo</a>
+                <a th:href="@{/workouts/new}" class="btn btn-primary" id="createPlanBtn">➕ New Plan</a>
+            </div>
         </div>
 
-        <!-- Stats Grid -->
+        <!-- Stat Cards -->
         <div class="stats-grid">
             <div class="stat-card stat-total">
-                <div class="stat-icon">📋</div>
+                <div class="stat-icon-wrap">📋</div>
                 <div class="stat-info">
                     <div class="stat-number" th:text="${stats.totalPlans}">0</div>
                     <div class="stat-label">Total Plans</div>
                 </div>
             </div>
             <div class="stat-card stat-draft">
-                <div class="stat-icon">📝</div>
+                <div class="stat-icon-wrap">📝</div>
                 <div class="stat-info">
                     <div class="stat-number" th:text="${stats.draftCount}">0</div>
                     <div class="stat-label">Draft</div>
                 </div>
             </div>
             <div class="stat-card stat-submitted">
-                <div class="stat-icon">📤</div>
+                <div class="stat-icon-wrap">📤</div>
                 <div class="stat-info">
                     <div class="stat-number" th:text="${stats.submittedCount}">0</div>
                     <div class="stat-label">Submitted</div>
                 </div>
             </div>
             <div class="stat-card stat-approved">
-                <div class="stat-icon">✅</div>
+                <div class="stat-icon-wrap">✅</div>
                 <div class="stat-info">
                     <div class="stat-number" th:text="${stats.approvedCount}">0</div>
                     <div class="stat-label">Approved</div>
                 </div>
             </div>
             <div class="stat-card stat-published">
-                <div class="stat-icon">🚀</div>
+                <div class="stat-icon-wrap">🚀</div>
                 <div class="stat-info">
                     <div class="stat-number" th:text="${stats.publishedCount}">0</div>
                     <div class="stat-label">Published</div>
@@ -119,38 +119,55 @@
 
         <!-- Difficulty Stats -->
         <div class="section-header">
-            <h2 class="section-title">Plans by Difficulty</h2>
+            <h2 class="section-title">Plans by Difficulty Level</h2>
+            <a th:href="@{/workouts}" class="btn btn-secondary btn-sm">View All Plans →</a>
         </div>
         <div class="difficulty-grid">
             <div class="diff-card beginner">
                 <div class="diff-label">🟢 Beginner</div>
                 <div class="diff-count" th:text="${stats.beginnerCount}">0</div>
+                <div class="diff-bar">
+                    <div class="diff-bar-fill"
+                         th:attr="data-width=${stats.totalPlans > 0 ? (stats.beginnerCount * 100 / stats.totalPlans) + '%' : '0%'}">
+                    </div>
+                </div>
             </div>
             <div class="diff-card intermediate">
                 <div class="diff-label">🟡 Intermediate</div>
                 <div class="diff-count" th:text="${stats.intermediateCount}">0</div>
+                <div class="diff-bar">
+                    <div class="diff-bar-fill"
+                         th:attr="data-width=${stats.totalPlans > 0 ? (stats.intermediateCount * 100 / stats.totalPlans) + '%' : '0%'}">
+                    </div>
+                </div>
             </div>
             <div class="diff-card advanced">
                 <div class="diff-label">🔴 Advanced</div>
                 <div class="diff-count" th:text="${stats.advancedCount}">0</div>
+                <div class="diff-bar">
+                    <div class="diff-bar-fill"
+                         th:attr="data-width=${stats.totalPlans > 0 ? (stats.advancedCount * 100 / stats.totalPlans) + '%' : '0%'}">
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Recent Plans Table -->
+        <!-- Recent Plans -->
         <div class="section-header">
             <h2 class="section-title">Recent Plans</h2>
-            <a th:href="@{/workouts}" class="btn btn-secondary" id="viewAllBtn">View All</a>
+            <a th:href="@{/workouts}" class="btn btn-secondary btn-sm" id="viewAllBtn">View All</a>
         </div>
         <div class="table-card">
             <div th:if="${#lists.isEmpty(recentPlans)}" class="empty-state">
                 <div class="empty-icon">🏋️</div>
-                <p>No workout plans yet.</p>
-                <a th:href="@{/workouts/new}" class="btn btn-primary">Create Your First Plan</a>
+                <h3>No workout plans yet</h3>
+                <p>Create your first plan to get started on your fitness journey.</p>
+                <a th:href="@{/workouts/new}" class="btn btn-primary" id="firstPlanBtn">➕ Create Your First Plan</a>
             </div>
-            <table class="data-table" th:if="${!#lists.isEmpty(recentPlans)}">
+            <table class="data-table" th:if="${!#lists.isEmpty(recentPlans)}" id="recentPlansTable">
                 <thead>
                     <tr>
-                        <th>Name</th>
+                        <th>Plan Name</th>
                         <th>Difficulty</th>
                         <th>Duration</th>
                         <th>Status</th>
@@ -159,8 +176,8 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr th:each="plan : ${recentPlans}">
-                        <td th:text="${plan.name}"></td>
+                    <tr th:each="plan : ${recentPlans}" th:onclick="|window.location='/workouts/${plan.id}'|">
+                        <td class="plan-name" th:text="${plan.name}"></td>
                         <td>
                             <span class="badge" th:classappend="${'badge-' + plan.difficulty.name().toLowerCase()}"
                                   th:text="${plan.difficulty}"></span>
@@ -171,15 +188,50 @@
                                   th:text="${plan.status}"></span>
                         </td>
                         <td th:text="${#temporals.format(plan.createdAt, 'dd MMM yyyy')}"></td>
-                        <td>
+                        <td class="action-cell" onclick="event.stopPropagation()">
                             <a th:href="@{/workouts/{id}(id=${plan.id})}" class="btn btn-xs">View</a>
                         </td>
                     </tr>
                 </tbody>
             </table>
         </div>
+
+        <!-- Quick CTA for demo -->
+        <div style="margin-top:32px; padding:28px; background:linear-gradient(135deg, rgba(6,182,212,0.08), rgba(124,111,255,0.08)); border:1px solid rgba(6,182,212,0.2); border-radius:var(--radius-lg); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+            <div>
+                <h3 style="font-size:18px;font-weight:700;margin-bottom:6px;font-family:'Outfit',sans-serif">🎯 Try the Interactive Demo</h3>
+                <p style="color:var(--text-secondary);font-size:14px">Explore the full system walkthrough — create plans, test the workflow, and interact with the AI assistant — no login required for evaluators.</p>
+            </div>
+            <a th:href="@{/demo}" class="btn btn-cyan btn-lg" id="dashDemoBtn">🚀 Explore Demo</a>
+        </div>
     </main>
 </div>
+
+<!-- Floating AI -->
+<button class="ai-assistant-fab" id="aiFab" aria-label="Open AI assistant" title="FitBot">🤖</button>
+<div class="ai-assistant-drawer closed" id="aiDrawer">
+    <div class="ai-panel-header">
+        <div class="ai-avatar">🤖</div>
+        <div><div class="ai-name">FitBot Assistant</div><div class="ai-status">Online</div></div>
+        <span class="ai-mode-badge">Demo Mode</span>
+    </div>
+    <div class="ai-messages" id="aiMessages"></div>
+    <div class="ai-suggestions">
+        <button class="ai-chip">Create a workout plan</button>
+        <button class="ai-chip">I'm a beginner</button>
+        <button class="ai-chip">Protein intake?</button>
+        <button class="ai-chip">How does the workflow work?</button>
+    </div>
+    <div class="ai-input-area">
+        <textarea class="ai-input" id="aiInput" placeholder="Ask FitBot anything..." rows="1"></textarea>
+        <button class="ai-send" id="aiSend">➤</button>
+    </div>
+    <div style="padding:8px 20px;border-top:1px solid var(--border);text-align:right">
+        <button class="ai-clear" id="aiClear">↺ New chat</button>
+    </div>
+</div>
+
+<div id="toast-container"></div>
 <script th:src="@{/js/main.js}"></script>
 </body>
 </html>

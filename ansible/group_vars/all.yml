@@ -1,18 +1,25 @@
 ---
-# Group variables – shared across all hosts
+# Group variables – shared across all hosts. NO SECRETS HERE.
 app_name: workout-plan-system
-app_version: "1.0.0"
 app_port: 8080
 app_dir: /opt/workout-app
 
-docker_image: devopsproject/workout-plan-system
-docker_tag: latest
-docker_compose_version: "2.24.0"
+# Image coordinates must match the Jenkins pipeline / docker-compose.yml.
+# In real deployments pin app_version to a build tag (e.g. 1.0.42), not "latest".
+app_image: devopsproject/workout-plan-system
+app_version: latest
 
 db_name: workout_db
 db_user: workout_user
-# Override sensitive values via --extra-vars or ansible-vault in production
-db_password: workout_pass
-db_root_password: root_secret
 
 java_version: "21"
+
+# Users allowed to run docker without sudo (e.g. the Jenkins agent user)
+docker_users: []
+
+# Set false to run without privilege escalation (e.g. already root, or testing)
+use_become: true
+
+# Required secrets – supply via `-e @secrets.yml` or ansible-vault. The preflight
+# role fails with a clear message if any is missing:
+#   db_password, db_root_password, admin_password, trainer_password

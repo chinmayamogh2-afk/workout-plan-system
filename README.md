@@ -124,160 +124,159 @@ The application starts on **http://localhost:8080**.
 
 ## Running with Docker Compose
 
+Secrets are **never** stored in the repository. Create a `.env` from the template and change every value:
+
 ```bash
-# Build and start MySQL + application
-docker-compose up -d --build
-
-# Follow logs
-docker-compose logs -f app
-
-# Stop everything
-docker-compose down
+cp .env.example .env        # then edit: DB_PASSWORD, DB_ROOT_PASSWORD, APP_ADMIN_PASSWORD, APP_TRAINER_PASSWORD
 ```
 
-The `app` service waits for MySQL to pass its health check before starting.
+```bash
+# Build from source and start MySQL + application (development)
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build --wait
 
-### Environment variables (override defaults)
+# Run a published/pre-built image (what Jenkins and Ansible do)
+APP_IMAGE=devopsproject/workout-plan-system APP_VERSION=1.0.42 docker compose up -d --wait
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `DB_URL` | `jdbc:mysql://db:3306/workout_db` | JDBC connection string |
-| `DB_USERNAME` | `workout_user` | Database username |
-| `DB_PASSWORD` | `workout_pass` | Database password |
-| `DB_ROOT_PASSWORD` | `root_secret` | MySQL root password |
-| `SERVER_PORT` | `8080` | Application HTTP port |
+docker compose logs -f app     # follow logs
+docker compose down            # stop (keeps the database volume); add -v to delete data
+```
+
+`docker compose up` fails immediately with a clear message if a required secret is missing.
+The database port is **not** published to the host; only the app container can reach MySQL
+(use `docker compose exec db mysql -u root -p` for admin access).
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_PASSWORD` | *(required in Docker)* | Application database password |
+| `DB_ROOT_PASSWORD` | *(required in Docker)* | MySQL root password |
+| `APP_ADMIN_PASSWORD` | *(required in Docker)* | Password of the seeded `admin` user |
+| `APP_TRAINER_PASSWORD` | *(required in Docker)* | Password of the seeded `trainer` user |
+| `DB_USERNAME` | `workout_user` | Application database user |
+| `APP_IMAGE` | `devopsproject/workout-plan-system` | Image repository (set to your Docker Hub namespace) |
+| `APP_VERSION` | `latest` | Image tag to run |
+| `APP_PORT` | `8080` | Host port for the web UI |
+| `DB_URL` | local MySQL | JDBC URL (set automatically by Compose) |
+| `THYMELEAF_CACHE` | `true` | Set `false` while editing templates |
+
+Outside Docker (`mvn spring-boot:run`) the seeded users fall back to the **development-only** passwords
+listed under [Default Credentials](#default-credentials) and a warning is logged.
 
 ---
 
 ## Jenkins CI/CD Pipeline
 
-The `Jenkinsfile` defines an 8-stage declarative pipeline:
+```mermaid
+flowchart LR
+  A[Checkout] --> B[Build] --> C[Unit + Integration Test] --> D[Package JAR]
+  D --> E[Docker Build<br/>image :1.0.BUILD] --> F[Selenium<br/>against that image]
+  F -->|main only| G[Docker Push] --> H[Deploy<br/>scripts/deploy.sh] --> I[Verify health + version] --> J[Promote :latest]
+  H -. unhealthy .-> R[Auto-restore previous version, fail build]
+```
 
-| # | Stage | Description |
-|---|---|---|
-| 1 | Checkout | Clone source from SCM, print last 5 commits |
-| 2 | Build | `mvn clean compile` |
-| 3 | Unit Test | `mvn test` (Surefire, JUnit results published) |
-| 4 | Package | `mvn package -DskipTests`, archives JAR |
-| 5 | Docker Build | Builds and tags Docker image |
-| 6 | Selenium Test | Spins up the stack, runs Failsafe/Selenium tests, tears down |
-| 7 | Docker Push | Pushes versioned + latest tags to Docker Hub (main branch only) |
-| 8 | Deploy | Replaces running container on target host (main branch only) |
-| post | Health Check | Polls /actuator/health until UP or fails the build |
+* One image is built once, tagged `${DOCKER_NAMESPACE}/workout-plan-system:1.0.${BUILD_NUMBER}`; **that same image** is run by
+  Selenium, pushed and deployed. No stage uses `|| true`, so a failed test, container start or health check fails the build and blocks later stages.
+* Selenium runs against a throw-away stack (`docker-compose.ci.yml`): random credentials, random localhost port, no volumes.
+  It is always torn down; screenshots, failsafe reports and container logs are archived.
+* Deployment (`scripts/deploy.sh`) validates the compose file and image, starts the database, records the running version,
+  replaces the app container, waits for the health check and, if the new version is unhealthy, restores the previous one.
+  The container is recreated in place, so there is a **short outage** during the switch (not zero-downtime).
+* `latest` is only pushed after the new version was deployed and verified.
 
-### Required Jenkins credentials
+### Required Jenkins credentials (created in Jenkins, never committed)
 
-| Credential ID | Type | Purpose |
-|---|---|---|
-| `docker-hub-credentials` | Username + Password | Docker Hub push/pull |
+| ID | Type | Contents |
+|----|------|----------|
+| `docker-hub-credentials` | Username with password | Docker Hub user + access token |
+| `workout-deploy-env` | Secret file | `DB_PASSWORD=`, `DB_ROOT_PASSWORD=`, `APP_ADMIN_PASSWORD=`, `APP_TRAINER_PASSWORD=` lines |
 
-### Required Jenkins plugins
+### Agent prerequisites
 
-See `jenkins/plugins.txt` for the full list.
+JDK 21, Maven 3.9+, Docker Engine with the Compose v2 plugin (`docker compose`), `curl`, `openssl`, Chrome/Chromium.
+Plugins are listed in `jenkins/plugins.txt`. Use a **Multibranch Pipeline** (or set `BRANCH_NAME`) so the `main`-only stages run.
+Set the `DOCKER_NAMESPACE` build parameter to your Docker Hub user.
+
+### GitHub Actions
+
+`.github/workflows/ci.yml` mirrors Jenkins: compile + tests, then build the image once, run Selenium against it and (on `main`)
+push that tested image. Repository secrets: `DOCKER_HUB_USERNAME`, `DOCKER_HUB_TOKEN`.
 
 ---
 
 ## Ansible Provisioning
 
-Automates full server setup from zero to running application.
-
 ```bash
-# Run against localhost (demo / dev)
-ansible-playbook ansible/playbook.yml -i ansible/inventory.ini
+cd ansible
+cp secrets.example.yml secrets.yml     # edit values, then: ansible-vault encrypt secrets.yml
 
-# Run against a remote server
-ansible-playbook ansible/playbook.yml -i ansible/inventory.ini \
-  -e "ansible_host=YOUR_SERVER_IP" --become
+ansible-playbook playbook.yml --syntax-check
+ansible-playbook playbook.yml -e @secrets.yml --ask-become-pass                       # localhost
+ansible-playbook playbook.yml -e target_hosts=app_servers -e @secrets.yml -e app_version=1.0.42   # remote
 ```
 
-### Roles
+Roles: `preflight` (fails fast if secrets/inputs are missing) → `common` → `java` → `docker` (Engine + Compose plugin, skipped if present)
+→ `app` (writes `.env` with mode 0600, installs compose file and `init.sql`, deploys with `community.docker.docker_compose_v2`,
+verifies `/actuator/health` reports `UP`, and on failure restores the previously running version).
+Re-running the playbook with no changes reports `changed=0`. Requires the `community.docker` and `community.general` collections
+(included in the `ansible` PyPI package).
 
-| Role | What it installs / configures |
-|---|---|
-| `common` | System packages, time zone, firewall |
-| `java` | OpenJDK 21 |
-| `docker` | Docker CE + Docker Compose plugin |
-| `app` | Copies docker-compose.yml, generates .env, starts the stack, waits for health |
-
-The playbook is **idempotent** — running it twice produces no changes on an already-provisioned server.
+Roll back to an earlier build: `ansible-playbook rollback.yml -e rollback_version=1.0.41 -e @secrets.yml`.
 
 ---
 
 ## Testing
 
-### Unit tests (Mockito, no database)
-
 ```bash
-mvn test
+mvn test                # unit tests (Mockito) + repository tests (H2) + MockMvc security/HTTP tests (H2). No MySQL needed.
 ```
 
-Covers:
-- `WorkoutPlanServiceTest` — CRUD, search, dashboard stats, exception paths
-- `WorkoutStatusTransitionTest` — all valid and invalid status-transition cases
+| Suite | What it proves |
+|-------|----------------|
+| `unit/WorkoutPlanServiceTest`, `WorkoutStatusTransitionTest` | CRUD, search, allowed/forbidden status transitions |
+| `unit/WorkoutPlanAccessControlTest` | Service-layer authorization: trainers cannot view/edit/delete/transition others' plans; owner-scoped search and dashboard; admin sees all |
+| `integration/WorkoutPlanRepositoryTest` | Queries and filters against H2 |
+| `integration/WorkoutPlanSecurityIntegrationTest` | HTTP-level: 403 for cross-trainer URLs, trainer can submit own plan, trainer cannot approve, dashboard/search isolation, 404/400 status codes, public health endpoint |
+| `selenium/WorkoutPlanSeleniumTest` | Browser journeys (login, create, search, edit, full workflow, dashboard) |
 
-### Integration tests (H2 in-memory database)
-
-```bash
-mvn test -Dtest=WorkoutPlanRepositoryTest
-```
-
-Covers repository queries: findByCreatedBy, searchByKeyword, filterPlans, countByStatus, countByDifficulty.
-
-### Selenium end-to-end tests (requires running application)
+Selenium needs a running application and Chrome:
 
 ```bash
-# Headless (CI)
-mvn failsafe:integration-test failsafe:verify \
-  -Dapp.base.url=http://localhost:8080 \
-  -Dselenium.headless=true
-
-# Headed (local inspection)
-mvn failsafe:integration-test failsafe:verify \
-  -Dapp.base.url=http://localhost:8080
+mvn test-compile failsafe:integration-test failsafe:verify \
+    -Dapp.base.url=http://localhost:8080 -Dselenium.headless=true \
+    -Dselenium.admin.password=<admin pw> -Dselenium.trainer.password=<trainer pw>
 ```
 
-Test cases:
-1. Login success
-2. Login failure (invalid credentials)
-3. Create a workout plan
-4. Search workout plans
-5. Edit a workout plan
-6. Full status workflow (DRAFT → SUBMITTED → APPROVED → PUBLISHED)
-7. Dashboard statistics display
-
-Screenshots of failures (and key steps) are saved to `target/selenium-screenshots/`.
+Screenshots are written to `target/selenium-screenshots/`.
 
 ---
 
 ## Rollback
 
-To roll back to a previous Docker image version:
-
 ```bash
-./scripts/rollback.sh <version>
-# e.g.
-./scripts/rollback.sh 1.0.5
+# Roll back to the version recorded by the last successful deploy (.deploy/previous_version) ...
+ENV_FILE=/path/to/secrets.env ./scripts/rollback.sh
+# ... or to an explicit version
+ENV_FILE=/path/to/secrets.env ./scripts/rollback.sh 1.0.41
 ```
 
-The script:
-1. Pulls the target versioned image (if not cached locally)
-2. Stops and removes the running container
-3. Starts a new container from the rollback image
-4. Polls /actuator/health until UP (12 retries x 10 s)
-5. Reports success or failure with container logs
+Automatic recovery also happens inside `scripts/deploy.sh` (Jenkins) and the `app` Ansible role: if the new version never
+reports healthy, the previously running version is started again and the run fails. Rollback restores the *application image*;
+the schema is managed by Hibernate `ddl-auto=update`, so a rollback never reverts database changes.
 
 ---
 
 ## Default Credentials
 
-Seeded by `DataInitializer` on first startup.
+Seeded on first start. **Development only** – override with `APP_ADMIN_PASSWORD` / `APP_TRAINER_PASSWORD`
+(Docker Compose and Ansible require you to).
 
-| Username | Password | Role |
-|---|---|---|
+| Username | Dev password | Role |
+|----------|--------------|------|
 | `admin` | `Admin@123` | ADMIN |
 | `trainer` | `Trainer@123` | TRAINER |
 
-> **Change these credentials before deploying to production.**
+Seeding only creates a user that does not exist yet; changing the variables later does not change an existing user's password.
 
 ---
 

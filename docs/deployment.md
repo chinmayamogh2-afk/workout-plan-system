@@ -56,161 +56,58 @@ mvn spring-boot:run
 
 Visit: http://localhost:8080
 
-Default admin credentials: `admin` / `Admin@123`
+Default (development-only) admin credentials: `admin` / `Admin@123`; override with `APP_ADMIN_PASSWORD`
 
 ---
 
 ## 3. Option B – Docker Compose (recommended)
 
-This is the simplest way to run the full stack with MySQL and the application together.
-
-### Step 1: Build and start
-
 ```bash
-docker-compose up -d --build
+cp .env.example .env     # set DB_PASSWORD, DB_ROOT_PASSWORD, APP_ADMIN_PASSWORD, APP_TRAINER_PASSWORD
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build --wait   # build from source
+docker compose ps                                                                       # both services "healthy"
+curl -fsS http://localhost:8080/actuator/health                                         # {"status":"UP"}
+docker compose logs -f app
+docker compose down            # keep data;  docker compose down -v  deletes the database volume
 ```
 
-### Step 2: Monitor startup
-
-```bash
-# Follow application logs
-docker-compose logs -f app
-
-# Check health status
-docker-compose ps
-```
-
-The `app` container starts only after MySQL passes its health check (`mysqladmin ping`). The application health check polls `/actuator/health` every 30 seconds.
-
-### Step 3: Access the application
-
-- Application: http://localhost:8080
-- Health: http://localhost:8080/actuator/health
-
-### Step 4: Stop
-
-```bash
-docker-compose down
-
-# Remove volumes (deletes database data)
-docker-compose down -v
-```
-
-### Using custom credentials
-
-Create a `.env` file in the project root:
-
-```env
-DB_USERNAME=my_user
-DB_PASSWORD=my_secure_password
-DB_ROOT_PASSWORD=my_root_password
-```
-
-Docker Compose automatically picks up `.env` variables.
+Missing secrets abort `docker compose up` with an explanatory error. MySQL is not published to the host.
+To run an already-built image instead of building: `APP_IMAGE=<namespace>/workout-plan-system APP_VERSION=<tag> docker compose up -d --wait`.
 
 ---
 
 ## 4. Option C – Ansible Automated Provisioning
 
-Provisions a fresh Ubuntu server end-to-end: installs Java, Docker, and runs the application.
+See *Ansible Provisioning* in the README for commands. Summary of behaviour:
 
-### Step 1: Edit the inventory
+1. `preflight` aborts before any change if secrets or image coordinates are missing.
+2. `common`/`java`/`docker` install prerequisites with native modules (idempotent; Docker install is skipped when present).
+3. `app` writes `.env` (mode 0600), installs `docker-compose.yml` and `scripts/init.sql`, starts the DB, deploys the image, checks `/actuator/health` for `UP`.
+4. If health verification fails, the previously running version is restored and the play fails with an actionable message.
 
-```ini
-# ansible/inventory.ini
-[local]
-localhost ansible_connection=local
-
-[remote]
-YOUR_SERVER_IP ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
-```
-
-### Step 2: Review variables
-
-```bash
-cat ansible/group_vars/all.yml
-```
-
-### Step 3: Run the playbook
-
-```bash
-# Against localhost (demo)
-ansible-playbook ansible/playbook.yml -i ansible/inventory.ini
-
-# Against remote server
-ansible-playbook ansible/playbook.yml -i ansible/inventory.ini \
-  --limit remote --become
-
-# Dry run (check mode)
-ansible-playbook ansible/playbook.yml -i ansible/inventory.ini --check
-```
-
-### Step 4: Verify
-
-The playbook ends with a post-task that polls `/actuator/health` and prints the JSON response. A green `ok` means the deployment succeeded.
-
-### Idempotency
-
-Running the playbook a second time on an already-provisioned host produces no changes (all tasks report `ok`, none report `changed`).
+`ansible-playbook playbook.yml --syntax-check` validates syntax; a second run on an unchanged host reports `changed=0`.
 
 ---
 
 ## 5. Option D – Jenkins CI/CD Pipeline
 
-### Step 1: Install Jenkins plugins
-
-```bash
-# Using Jenkins CLI
-jenkins-plugin-cli --plugin-file jenkins/plugins.txt
-```
-
-Or install manually via **Manage Jenkins → Plugins → Available**.
-
-### Step 2: Add credentials
-
-In **Manage Jenkins → Credentials → System → Global → Add Credentials**:
-
-| ID | Type | Value |
-|---|---|---|
-| `docker-hub-credentials` | Username with password | Docker Hub login |
-
-### Step 3: Create a Pipeline job
-
-1. New Item → Pipeline
-2. Configure SCM: Git → paste repository URL
-3. Script Path: `Jenkinsfile`
-4. Save and Build Now
-
-### Step 4: Interpret the stages
-
-| Stage | Success indicator |
-|---|---|
-| Build | `mvn clean compile` exits 0 |
-| Unit Test | All JUnit tests pass; results published |
-| Package | `target/workout-plan-system-1.0.0.jar` archived |
-| Docker Build | Image tagged with version and `latest` |
-| Selenium Test | All 7 Selenium tests pass; screenshots archived on failure |
-| Docker Push | Image pushed to Docker Hub (main branch only) |
-| Deploy | New container running on target host (main branch only) |
-| Health Check | `/actuator/health` returns `{"status":"UP"}` |
-
-### Multibranch pipeline (recommended)
-
-For GitHub integration with automatic branch detection and PR checks, use a **Multibranch Pipeline** job pointing at the repository. The `Jenkinsfile` `when { branch 'main' }` gates ensure Docker Push and Deploy only run on the main branch.
+See *Jenkins CI/CD Pipeline* in the README for stages, credentials (`docker-hub-credentials`, `workout-deploy-env`) and agent prerequisites.
+Deployment is performed by `scripts/deploy.sh`: validate → start DB → deploy → verify health → restore previous version on failure.
 
 ---
 
 ## 6. Environment Variables Reference
 
 | Variable | Default | Description |
-|---|---|---|
-| `DB_URL` | `jdbc:mysql://localhost:3306/workout_db?...` | Full JDBC connection string |
+|----------|---------|-------------|
+| `DB_URL` | local MySQL | Full JDBC connection string |
 | `DB_USERNAME` | `workout_user` | Database user |
-| `DB_PASSWORD` | `workout_pass` | Database password |
-| `DB_ROOT_PASSWORD` | `root_secret` | MySQL root password (Docker only) |
-| `SERVER_PORT` | `8080` | HTTP port the app listens on |
-| `JAVA_OPTS` | `-Xmx512m -Xms256m` | JVM flags |
-| `DOCKER_HUB_USER` | `devopsproject` | Docker Hub organisation / username |
+| `DB_PASSWORD` | required in Docker | Database password |
+| `DB_ROOT_PASSWORD` | required in Docker | MySQL root password |
+| `APP_ADMIN_PASSWORD` / `APP_TRAINER_PASSWORD` | required in Docker | Seeded user passwords (dev defaults only outside Docker) |
+| `APP_IMAGE` / `APP_VERSION` | `devopsproject/workout-plan-system` / `latest` | Image to run |
+| `APP_PORT` / `SERVER_PORT` | `8080` | Host port / container port |
+| `THYMELEAF_CACHE` | `true` | Template caching |
 
 ---
 
@@ -243,42 +140,18 @@ Expected response:
 ### Database connectivity
 
 ```bash
-docker exec -it workout-db mysql -uworkout_user -pworkout_pass workout_db -e "SHOW TABLES;"
+docker exec -it workout-db sh -c 'MYSQL_PWD=$MYSQL_PASSWORD mysql -u$MYSQL_USER workout_db -e "SHOW TABLES;"'
 ```
 
 ---
 
 ## 8. Rollback Procedure
 
-If a deployment introduces a regression:
+* **Automatic:** `scripts/deploy.sh` (used by Jenkins) and the Ansible `app` role restore the previous version if the new one is unhealthy.
+* **Manual (script):** `ENV_FILE=/path/to/secrets.env ./scripts/rollback.sh [version]` (defaults to `.deploy/previous_version`).
+* **Manual (Ansible):** `ansible-playbook rollback.yml -e rollback_version=1.0.41 -e @secrets.yml`.
 
-```bash
-# Syntax
-./scripts/rollback.sh <previous-version>
-
-# Example: roll back to version 1.0.5
-./scripts/rollback.sh 1.0.5
-```
-
-The script:
-1. Attempts to pull the versioned image from Docker Hub if not cached locally
-2. Stops and removes the current running container
-3. Starts a new container using the rollback image
-4. Polls `/actuator/health` until `UP` (12 × 10 s = 2 minutes max)
-5. Prints `ROLLBACK SUCCESSFUL` or exits with error and prints recent logs
-
-### Git rollback
-
-```bash
-# Find the last known-good commit
-git log --oneline
-
-# Create a revert commit (preserves history)
-git revert <bad-commit-hash>
-git push origin main
-
-# Jenkins will automatically pick up the revert and redeploy
-```
+Only the application image is rolled back; database changes are not reverted. The switch recreates the container, so there is a brief outage.
 
 ---
 
@@ -304,7 +177,7 @@ git push origin main
 ```bash
 # Check MySQL container
 docker logs workout-db --tail 20
-docker exec workout-db mysqladmin ping -uroot -proot_secret
+docker exec workout-db sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysqladmin ping -uroot'
 ```
 
 ---

@@ -48,10 +48,11 @@ public class SecurityConfig {
             .authenticationProvider(authenticationProvider())
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints
-                .requestMatchers("/login", "/css/**", "/js/**", "/images/**",
+                .requestMatchers("/login", "/demo", "/css/**", "/js/**", "/images/**",
                                  "/actuator/health").permitAll()
-                // Admin-only: approve and publish
-                .requestMatchers("/workouts/*/status").hasRole("ADMIN")
+                // Status transitions are authorised in WorkoutPlanService (owner may submit,
+                // only admins may approve/publish). A blanket ADMIN rule here used to block
+                // trainers from submitting their own plans.
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )
@@ -66,9 +67,10 @@ public class SecurityConfig {
                 .logoutSuccessUrl("/login?logout=true")
                 .permitAll()
             )
-            // Expose H2 console in dev/test (disabled in prod via profile)
+            // CSRF stays enabled for all application routes; only the read-only
+            // health probe is exempt.
             .csrf(csrf -> csrf
-                .ignoringRequestMatchers("/actuator/**", "/api/**")
+                .ignoringRequestMatchers("/actuator/health")
             )
             .headers(headers -> headers.frameOptions(f -> f.sameOrigin()));
 

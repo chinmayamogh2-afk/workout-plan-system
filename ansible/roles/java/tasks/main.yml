@@ -1,42 +1,29 @@
 ---
-# =============================================================
-# Role: java – Installs Java 21 (OpenJDK)
-# Idempotent: checks if java is already installed first
-# =============================================================
+# Role: java – installs OpenJDK (idempotent; the package manager is the check)
 
-- name: Check if Java 21 is already installed
-  command: java -version
-  register: java_check
-  ignore_errors: true
-  changed_when: false
-  tags: [java]
-
-- name: Install Java 21 (Ubuntu/Debian)
-  apt:
-    name: openjdk-21-jdk
+- name: Install OpenJDK on Debian/Ubuntu, version {{ java_version }}
+  ansible.builtin.apt:
+    name: "openjdk-{{ java_version }}-jdk"
     state: present
-  when:
-    - ansible_os_family == "Debian"
-    - java_check.rc != 0
+  when: ansible_os_family == "Debian"
   become: true
   tags: [java]
 
-- name: Install Java 21 (macOS via Homebrew)
-  homebrew:
-    name: openjdk@21
+- name: Install OpenJDK on macOS via Homebrew, version {{ java_version }}
+  community.general.homebrew:
+    name: "openjdk@{{ java_version }}"
     state: present
-  when:
-    - ansible_os_family == "Darwin"
-    - java_check.rc != 0
+  when: ansible_os_family == "Darwin"
+  become: false
   tags: [java]
 
-- name: Verify Java installation
-  command: java -version
+- name: Verify Java is available
+  ansible.builtin.command: java -version
   register: java_version_output
   changed_when: false
   tags: [java]
 
-- name: Display Java version
-  debug:
-    msg: "Java installed: {{ java_version_output.stderr }}"
+- name: Show Java version
+  ansible.builtin.debug:
+    msg: "{{ java_version_output.stderr_lines | first }}"
   tags: [java]

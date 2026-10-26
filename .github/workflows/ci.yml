@@ -1,7 +1,10 @@
 # ============================================================
-# GitHub Actions CI Pipeline – Workout Plan Management System
+# GitHub Actions CI – Workout Plan Management System
 # Triggers: push/PR to main or develop
-# Jobs: build → unit-test → integration-test → docker-build
+# Jobs:  test  →  docker-e2e (build image once, run Selenium against it,
+#                 push THE SAME image on main)
+# Mirrors the Jenkins pipeline (compile+unit/integration tests, image build,
+# Selenium against the built image, push) without duplicating compile jobs.
 # ============================================================
 
 name: CI
@@ -12,6 +15,13 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   JAVA_VERSION: '21'
   MAVEN_OPTS: '-Xmx512m'
@@ -19,56 +29,35 @@ env:
 jobs:
 
   # ----------------------------------------------------------
-  # Job 1: Compile
-  # ----------------------------------------------------------
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Set up Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: temurin
-          cache: maven
-
-      - name: Compile
-        run: mvn clean compile -q
-
-  # ----------------------------------------------------------
-  # Job 2: Unit & Integration Tests
+  # Compile + unit tests + repository/security integration tests
   # ----------------------------------------------------------
   test:
-    name: Test
+    name: Compile & Test
     runs-on: ubuntu-latest
-    needs: build
-
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
           cache: maven
 
-      - name: Run unit and integration tests
-        run: mvn test -q
+      - name: Compile and run tests
+        run: mvn -B test
 
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
-          files: '**/target/surefire-reports/*.xml'
+          files: target/surefire-reports/*.xml
           check_name: Unit & Integration Test Results
 
-      - name: Upload surefire reports on failure
+      - name: Upload surefire reports
         uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -77,98 +66,111 @@ jobs:
           retention-days: 7
 
   # ----------------------------------------------------------
-  # Job 3: Package (JAR)
+  # Build the image once, run Selenium against it, push the same image
   # ----------------------------------------------------------
-  package:
-    name: Package
+  docker-e2e:
+    name: Docker Build & Selenium
     runs-on: ubuntu-latest
     needs: test
-
+    env:
+      APP_IMAGE: devopsproject/workout-plan-system
+      APP_VERSION: ci-${{ github.sha }}
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
           cache: maven
 
-      - name: Build JAR
-        run: mvn package -DskipTests -q
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Upload JAR artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: workout-plan-system-jar
-          path: target/workout-plan-system-*.jar
-          retention-days: 14
-
-  # ----------------------------------------------------------
-  # Job 4: Docker Build (validates image builds correctly)
-  # ----------------------------------------------------------
-  docker-build:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    needs: package
-
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
+      - name: Build image (loaded locally for testing)
         uses: docker/build-push-action@v5
         with:
           context: .
+          load: true
           push: false
-          tags: workout-plan-system:ci-${{ github.sha }}
+          build-args: APP_VERSION=${{ env.APP_VERSION }}
+          tags: ${{ env.APP_IMAGE }}:${{ env.APP_VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Verify Docker image was built
-        run: docker images workout-plan-system
+      - name: Generate throw-away CI credentials
+        run: |
+          set -eu
+          umask 077
+          for v in CI_DB_PASSWORD CI_DB_ROOT_PASSWORD CI_ADMIN_PASSWORD CI_TRAINER_PASSWORD; do
+            val="$(openssl rand -hex 12)"
+            [ "$v" = CI_ADMIN_PASSWORD ] || [ "$v" = CI_TRAINER_PASSWORD ] && val="Ci-${val}"
+            echo "::add-mask::${val}"
+            echo "${v}=${val}" >> "$RUNNER_TEMP/ci.env"
+          done
 
-  # ----------------------------------------------------------
-  # Job 5: Docker Push (main branch only, requires secrets)
-  # ----------------------------------------------------------
-  docker-push:
-    name: Docker Push
-    runs-on: ubuntu-latest
-    needs: docker-build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      - name: Start application stack (fails if not healthy)
+        run: |
+          docker compose -p wps-ci -f docker-compose.ci.yml --env-file "$RUNNER_TEMP/ci.env" \
+            up -d --wait --wait-timeout 240
+          PORT="$(docker compose -p wps-ci -f docker-compose.ci.yml --env-file "$RUNNER_TEMP/ci.env" port app 8080 | sed 's/.*://')"
+          echo "APP_URL=http://127.0.0.1:${PORT}" >> "$GITHUB_ENV"
+          curl -fsS "http://127.0.0.1:${PORT}/actuator/health" | grep -q '"status":"UP"'
 
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+      - name: Selenium tests
+        run: |
+          set -eu
+          . "$RUNNER_TEMP/ci.env"
+          mvn -B test-compile failsafe:integration-test failsafe:verify \
+            -Dapp.base.url="${APP_URL}" \
+            -Dselenium.headless=true \
+            -Dselenium.admin.password="${CI_ADMIN_PASSWORD}" \
+            -Dselenium.trainer.password="${CI_TRAINER_PASSWORD}"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Upload Selenium results and screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: selenium-results
+          path: |
+            target/failsafe-reports/
+            target/selenium-screenshots/
+          if-no-files-found: ignore
+          retention-days: 7
 
+      - name: Collect stack logs
+        if: always()
+        run: |
+          [ -f "$RUNNER_TEMP/ci.env" ] && docker compose -p wps-ci -f docker-compose.ci.yml \
+            --env-file "$RUNNER_TEMP/ci.env" logs --no-color > ci-stack.log 2>&1 || true
+
+      - name: Upload stack logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-stack-log
+          path: ci-stack.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Tear down stack
+        if: always()
+        run: |
+          [ -f "$RUNNER_TEMP/ci.env" ] && docker compose -p wps-ci -f docker-compose.ci.yml \
+            --env-file "$RUNNER_TEMP/ci.env" down -v --remove-orphans || true
+          rm -f "$RUNNER_TEMP/ci.env"
+
+      # Only reached when every step above succeeded => the pushed image is the tested image
       - name: Log in to Docker Hub
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ secrets.DOCKER_HUB_USERNAME }}/workout-plan-system
-          tags: |
-            type=sha,prefix=
-            type=raw,value=latest
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Push the tested image
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          set -eu
+          TARGET="${{ secrets.DOCKER_HUB_USERNAME }}/workout-plan-system"
+          docker tag "${APP_IMAGE}:${APP_VERSION}" "${TARGET}:${GITHUB_SHA}"
+          docker push "${TARGET}:${GITHUB_SHA}"

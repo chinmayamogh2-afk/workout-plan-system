@@ -4,30 +4,39 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Login | FitFlow Workout Manager</title>
-    <meta name="description" content="Login to FitFlow Workout Plan Management System"/>
+    <meta name="description" content="Login to FitFlow – Premium Workout Plan Management System"/>
     <link rel="preconnect" href="https://fonts.googleapis.com"/>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;family=Outfit:wght@300;400;500;600;700;800&amp;display=swap"/>
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
 </head>
 <body class="login-body">
+
+<!-- Animated gradient orbs -->
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
 <div class="login-container">
     <div class="login-card">
+        <!-- Brand -->
         <div class="login-header">
-            <div class="login-logo">💪</div>
+            <div class="login-logo-wrap">💪</div>
             <h1 class="login-title">FitFlow</h1>
             <p class="login-subtitle">Workout Plan Management System</p>
         </div>
 
-        <!-- Error message -->
-        <div class="alert alert-error" th:if="${param.error}" id="loginError">
-            <span>⚠️</span> Invalid username or password. Please try again.
+        <!-- Error/Success alerts -->
+        <div class="alert alert-error" th:if="${param.error}" id="loginError" role="alert">
+            <span>⚠️</span>
+            <span>Invalid username or password. Please try again.</span>
+        </div>
+        <div class="alert alert-success" th:if="${param.logout}" id="logoutMsg" role="status">
+            <span>✅</span>
+            <span>You have been signed out successfully.</span>
         </div>
 
-        <!-- Logout message -->
-        <div class="alert alert-success" th:if="${param.logout}" id="logoutMsg">
-            <span>✅</span> You have been logged out successfully.
-        </div>
-
+        <!-- Login form -->
         <form th:action="@{/login}" method="post" class="login-form" id="loginForm">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
 
@@ -36,7 +45,8 @@
                 <div class="input-wrapper">
                     <span class="input-icon">👤</span>
                     <input type="text" id="username" name="username" class="form-input"
-                           placeholder="Enter your username" required autocomplete="username"/>
+                           placeholder="Enter your username"
+                           required autocomplete="username"/>
                 </div>
             </div>
 
@@ -45,7 +55,8 @@
                 <div class="input-wrapper">
                     <span class="input-icon">🔒</span>
                     <input type="password" id="password" name="password" class="form-input"
-                           placeholder="Enter your password" required autocomplete="current-password"/>
+                           placeholder="Enter your password"
+                           required autocomplete="current-password"/>
                 </div>
             </div>
 
@@ -54,21 +65,45 @@
             </button>
         </form>
 
+        <!-- Demo mode divider -->
+        <div class="demo-divider">
+            <span>or</span>
+        </div>
+
+        <a th:href="@{/demo}" class="btn-demo" id="demoBtn">
+            🚀 Explore Interactive Demo (No Login)
+        </a>
+
+        <!-- Credential hints -->
         <div class="login-hints">
             <p class="hint-title">Demo Credentials</p>
             <div class="hint-grid">
-                <div class="hint-item">
-                    <span class="hint-role">Admin</span>
+                <div class="hint-item" onclick="fillCredentials('admin','Admin@123')" id="adminHint" tabindex="0" role="button" aria-label="Use admin credentials">
+                    <span class="hint-role">🛡️ Admin</span>
                     <code>admin / Admin@123</code>
                 </div>
-                <div class="hint-item">
-                    <span class="hint-role">Trainer</span>
+                <div class="hint-item" onclick="fillCredentials('trainer','Trainer@123')" id="trainerHint" tabindex="0" role="button" aria-label="Use trainer credentials">
+                    <span class="hint-role">🏋️ Trainer</span>
                     <code>trainer / Trainer@123</code>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+  function fillCredentials(username, password) {
+    document.getElementById('username').value = username;
+    document.getElementById('password').value = password;
+    document.getElementById('username').focus();
+  }
+  // Allow keyboard activation of hint items
+  document.querySelectorAll('.hint-item').forEach(item => {
+    item.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') item.click();
+    });
+  });
+</script>
 <script th:src="@{/js/main.js}"></script>
 </body>
 </html>

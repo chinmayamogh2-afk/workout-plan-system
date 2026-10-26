@@ -44,7 +44,7 @@ public class WorkoutPlanController {
         boolean isAdmin = isAdmin(auth);
 
         if (keyword != null || status != null || difficulty != null) {
-            plans = service.filterPlans(status, difficulty, keyword);
+            plans = service.filterPlansForUser(auth.getName(), isAdmin, status, difficulty, keyword);
         } else if (isAdmin) {
             plans = service.getAllPlans();
         } else {
@@ -67,7 +67,7 @@ public class WorkoutPlanController {
 
     @GetMapping("/{id}")
     public String viewPlan(@PathVariable Long id, Authentication auth, Model model) {
-        WorkoutPlan plan = service.getPlanById(id);
+        WorkoutPlan plan = service.getPlanForUser(id, auth.getName(), isAdmin(auth));
         model.addAttribute("plan", plan);
         model.addAttribute("isAdmin", isAdmin(auth));
         model.addAttribute("isOwner", plan.getCreatedBy().equals(auth.getName()));
@@ -112,7 +112,7 @@ public class WorkoutPlanController {
 
     @GetMapping("/{id}/edit")
     public String editPlanForm(@PathVariable Long id, Authentication auth, Model model) {
-        WorkoutPlan plan = service.getPlanById(id);
+        WorkoutPlan plan = service.getEditablePlan(id, auth.getName(), isAdmin(auth));
         model.addAttribute("planDto", service.mapEntityToDto(plan));
         model.addAttribute("planId", id);
         model.addAttribute("difficultyValues", DifficultyLevel.values());

@@ -1,0 +1,25 @@
+---
+# Fail fast, before any package is installed, if required inputs are missing.
+- name: Require deployment secrets and image coordinates
+  ansible.builtin.assert:
+    that:
+      - db_password is defined and db_password | length >= 8
+      - db_root_password is defined and db_root_password | length >= 8
+      - admin_password is defined and admin_password | length >= 8
+      - trainer_password is defined and trainer_password | length >= 8
+      - app_image | length > 0
+      - app_version | length > 0
+    fail_msg: >-
+      Missing or too-short secret. Provide db_password, db_root_password,
+      admin_password and trainer_password (min 8 chars) with -e @secrets.yml
+      (see ansible/secrets.example.yml). Also set app_image and app_version.
+    quiet: true
+  no_log: true
+  tags: [always]
+
+- name: Require a supported operating system
+  ansible.builtin.assert:
+    that: ansible_os_family in ['Debian', 'Darwin']
+    fail_msg: "Unsupported OS family '{{ ansible_os_family }}'. Supported: Debian/Ubuntu, macOS."
+    quiet: true
+  tags: [always]

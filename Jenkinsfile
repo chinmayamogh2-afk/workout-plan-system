@@ -1,233 +1,207 @@
 // =============================================================
 // Jenkinsfile – Workout Plan Management System CI/CD Pipeline
-// Stages: Checkout → Build → Test → Package → Docker → Deploy
+// Stages: Checkout → Build → Unit/Integration Test → Package →
+//         Docker Build → Selenium (against the built image) →
+//         Push (main) → Deploy (main) → Verify
+//
+// One image is built once (tagged with APP_VERSION) and that exact image is
+// tested by Selenium, pushed and deployed. Any failing stage fails the build
+// and blocks everything after it.
+//
+// Agent prerequisites: JDK 21, Maven 3.9+, Docker Engine with the Compose v2
+// plugin (`docker compose`), curl, openssl, Chrome/Chromium (for Selenium).
+//
+// Jenkins credentials used (none are stored in this repository):
+//   docker-hub-credentials  Username/password  – registry push
+//   workout-deploy-env      Secret file        – KEY=VALUE lines: DB_PASSWORD,
+//                           DB_ROOT_PASSWORD, APP_ADMIN_PASSWORD, APP_TRAINER_PASSWORD
 // =============================================================
 
 pipeline {
     agent any
 
+    parameters {
+        string(name: 'DOCKER_NAMESPACE', defaultValue: 'devopsproject',
+               description: 'Docker Hub namespace (user/org) the image is published under')
+        booleanParam(name: 'DEPLOY', defaultValue: true,
+                     description: 'Deploy after a successful build on the main branch')
+    }
+
     environment {
-        APP_NAME         = 'workout-plan-system'
-        APP_VERSION      = "1.0.${BUILD_NUMBER}"
-        DOCKER_IMAGE     = "${DOCKER_HUB_USER ?: 'devopsproject'}/${APP_NAME}"
-        DOCKER_TAG       = "${APP_VERSION}"
-        DOCKER_LATEST    = "${DOCKER_IMAGE}:latest"
-        CONTAINER_NAME   = 'workout-app'
-        DB_CONTAINER     = 'workout-db'
-        APP_PORT         = '8080'
-        HEALTH_URL       = "http://localhost:${APP_PORT}/actuator/health"
-        MAVEN_OPTS       = '-Xmx512m'
+        APP_NAME     = 'workout-plan-system'
+        APP_VERSION  = "1.0.${BUILD_NUMBER}"
+        APP_IMAGE    = "${params.DOCKER_NAMESPACE}/workout-plan-system"
+        APP_PORT     = '8080'
+        CI_PROJECT   = "wps-ci-${BUILD_NUMBER}"
+        MAVEN_OPTS   = '-Xmx512m'
     }
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
-        timeout(time: 30, unit: 'MINUTES')
+        timeout(time: 40, unit: 'MINUTES')
         timestamps()
+        disableConcurrentBuilds()
     }
 
     stages {
 
-        // ----------------------------------------------------------
         stage('Checkout') {
-        // ----------------------------------------------------------
             steps {
-                echo "📥 Checking out source code from branch: ${GIT_BRANCH}"
                 checkout scm
                 sh 'git log --oneline -5'
             }
         }
 
-        // ----------------------------------------------------------
         stage('Build') {
-        // ----------------------------------------------------------
             steps {
-                echo "🔨 Compiling the application..."
-                sh 'mvn clean compile -q'
-            }
-            post {
-                failure { echo "❌ Build FAILED – fix compile errors before proceeding." }
+                sh 'mvn -B -q clean compile'
             }
         }
 
-        // ----------------------------------------------------------
-        stage('Unit Test') {
-        // ----------------------------------------------------------
+        stage('Unit & Integration Test') {
             steps {
-                echo "🧪 Running unit and integration tests..."
-                sh 'mvn test -q'
+                sh 'mvn -B test'
             }
             post {
                 always {
-                    // Publish JUnit test results to Jenkins
-                    junit allowEmptyResults: true,
-                          testResults: '**/target/surefire-reports/*.xml'
+                    // allowEmptyResults is deliberately false: no reports means the tests did not run
+                    junit testResults: 'target/surefire-reports/*.xml'
                 }
-                failure { echo "❌ Unit Tests FAILED – deployment blocked." }
             }
         }
 
-        // ----------------------------------------------------------
         stage('Package') {
-        // ----------------------------------------------------------
             steps {
-                echo "📦 Packaging the application JAR..."
-                sh 'mvn package -DskipTests -q'
+                sh 'mvn -B -q package -DskipTests'
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
-                echo "✅ JAR archived: target/${APP_NAME}-1.0.0.jar"
             }
         }
 
-        // ----------------------------------------------------------
         stage('Docker Build') {
-        // ----------------------------------------------------------
             steps {
-                echo "🐳 Building Docker image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
-                sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} -t ${DOCKER_LATEST} ."
-                sh "docker images ${DOCKER_IMAGE}"
+                sh '''
+                    docker build --build-arg APP_VERSION="${APP_VERSION}" -t "${APP_IMAGE}:${APP_VERSION}" .
+                    docker image inspect "${APP_IMAGE}:${APP_VERSION}" --format 'Built {{.RepoTags}} {{.Id}}'
+                '''
             }
         }
 
-        // ----------------------------------------------------------
         stage('Selenium Test') {
-        // ----------------------------------------------------------
             steps {
-                echo "🌐 Starting application stack for Selenium tests..."
-                sh """
-                    # Start MySQL and app for integration testing
-                    docker-compose up -d --wait || true
+                // Throw-away stack: random credentials, random localhost port, no volumes.
+                sh '''
+                    set -eu
+                    umask 077
+                    {
+                      echo "CI_DB_PASSWORD=$(openssl rand -hex 12)"
+                      echo "CI_DB_ROOT_PASSWORD=$(openssl rand -hex 12)"
+                      echo "CI_ADMIN_PASSWORD=Ci-$(openssl rand -hex 8)"
+                      echo "CI_TRAINER_PASSWORD=Ci-$(openssl rand -hex 8)"
+                    } > .ci.env
 
-                    # Wait for app to be healthy (up to 120 seconds)
-                    timeout=120
-                    elapsed=0
-                    until curl -sf ${HEALTH_URL} > /dev/null 2>&1 || [ \$elapsed -ge \$timeout ]; do
-                        sleep 5
-                        elapsed=\$((elapsed + 5))
-                        echo "Waiting for app... (\${elapsed}s)"
-                    done
+                    CI="docker compose -p ${CI_PROJECT} -f docker-compose.ci.yml --env-file .ci.env"
+                    # --wait fails (non-zero) if a service never becomes healthy
+                    $CI up -d --wait --wait-timeout 240
 
-                    if ! curl -sf ${HEALTH_URL}; then
-                        echo "Application health check failed!"
-                        exit 1
-                    fi
-                """
-                sh "mvn failsafe:integration-test failsafe:verify -Dapp.base.url=http://localhost:${APP_PORT} -Dselenium.headless=true"
+                    PORT=$($CI port app 8080 | sed 's/.*://')
+                    curl -fsS "http://127.0.0.1:${PORT}/actuator/health" | grep -q '"status":"UP"'
+
+                    . ./.ci.env
+                    mvn -B test-compile failsafe:integration-test failsafe:verify \
+                        -Dapp.base.url="http://127.0.0.1:${PORT}" \
+                        -Dselenium.headless=true \
+                        -Dselenium.admin.password="${CI_ADMIN_PASSWORD}" \
+                        -Dselenium.trainer.password="${CI_TRAINER_PASSWORD}"
+                '''
             }
             post {
                 always {
-                    junit allowEmptyResults: true,
-                          testResults: '**/target/failsafe-reports/*.xml'
-                    archiveArtifacts artifacts: 'target/selenium-screenshots/**/*.png',
-                                      allowEmptyArchive: true
-                    sh 'docker-compose down --remove-orphans || true'
+                    junit testResults: 'target/failsafe-reports/*.xml', allowEmptyResults: true
+                    archiveArtifacts artifacts: 'target/selenium-screenshots/**/*.png', allowEmptyArchive: true
+                    // Keep logs for diagnosis, then always tear the stack down (even on failure)
+                    sh '''
+                        CI="docker compose -p ${CI_PROJECT} -f docker-compose.ci.yml --env-file .ci.env"
+                        [ -f .ci.env ] && $CI logs --no-color > ci-stack.log 2>&1 || true
+                        [ -f .ci.env ] && $CI down -v --remove-orphans || true
+                        rm -f .ci.env
+                    '''
+                    archiveArtifacts artifacts: 'ci-stack.log', allowEmptyArchive: true
                 }
-                failure { echo "❌ Selenium Tests FAILED – deployment blocked." }
             }
         }
 
-        // ----------------------------------------------------------
-        stage('Docker Tag & Push') {
-        // ----------------------------------------------------------
-            when {
-                branch 'main'
-            }
+        stage('Docker Push') {
+            when { expression { env.BRANCH_NAME == 'main' || env.GIT_BRANCH in ['origin/main', 'main'] } }
             steps {
-                echo "🏷️  Tagging and pushing Docker image to registry..."
-                withCredentials([usernamePassword(
-                        credentialsId: 'docker-hub-credentials',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS')]) {
-                    sh """
-                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                        docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-                        docker push ${DOCKER_LATEST}
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials',
+                                                  usernameVariable: 'DOCKER_USER',
+                                                  passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+                        docker push "${APP_IMAGE}:${APP_VERSION}"
                         docker logout
-                    """
+                    '''
                 }
             }
         }
 
-        // ----------------------------------------------------------
         stage('Deploy') {
-        // ----------------------------------------------------------
             when {
-                branch 'main'
+                allOf {
+                    expression { env.BRANCH_NAME == 'main' || env.GIT_BRANCH in ['origin/main', 'main'] }
+                    expression { params.DEPLOY }
+                }
             }
             steps {
-                echo "🚀 Deploying new container version ${DOCKER_TAG}..."
-                sh """
-                    # Stop and remove old container if exists
-                    docker stop ${CONTAINER_NAME} 2>/dev/null || true
-                    docker rm   ${CONTAINER_NAME} 2>/dev/null || true
-
-                    # Start MySQL if not already running
-                    docker start ${DB_CONTAINER} 2>/dev/null || \
-                        docker run -d --name ${DB_CONTAINER} \
-                            --network workout-network \
-                            -e MYSQL_DATABASE=workout_db \
-                            -e MYSQL_USER=workout_user \
-                            -e MYSQL_PASSWORD=workout_pass \
-                            -e MYSQL_ROOT_PASSWORD=root_secret \
-                            -v mysql_data:/var/lib/mysql \
-                            mysql:8.0
-
-                    # Create network if not exists
-                    docker network create workout-network 2>/dev/null || true
-
-                    # Start new application container
-                    docker run -d \
-                        --name ${CONTAINER_NAME} \
-                        --network workout-network \
-                        -p ${APP_PORT}:8080 \
-                        -e DB_URL="jdbc:mysql://${DB_CONTAINER}:3306/workout_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" \
-                        -e DB_USERNAME=workout_user \
-                        -e DB_PASSWORD=workout_pass \
-                        --restart unless-stopped \
-                        ${DOCKER_IMAGE}:${DOCKER_TAG}
-                """
+                // deploy.sh: validate → start DB → replace app → verify health → auto-restore on failure
+                withCredentials([file(credentialsId: 'workout-deploy-env', variable: 'ENV_FILE')]) {
+                    sh './scripts/deploy.sh'
+                }
             }
         }
 
-        // ----------------------------------------------------------
-        stage('Health Check') {
-        // ----------------------------------------------------------
+        stage('Verify Deployment') {
             when {
-                branch 'main'
+                allOf {
+                    expression { env.BRANCH_NAME == 'main' || env.GIT_BRANCH in ['origin/main', 'main'] }
+                    expression { params.DEPLOY }
+                }
             }
             steps {
-                echo "🏥 Verifying deployment health..."
-                sh """
-                    sleep 30
-                    MAX_RETRIES=10
-                    COUNT=0
-                    until curl -sf ${HEALTH_URL} | grep -q '"status":"UP"'; do
-                        COUNT=\$((COUNT + 1))
-                        if [ \$COUNT -ge \$MAX_RETRIES ]; then
-                            echo "❌ Health check failed after \${MAX_RETRIES} retries!"
-                            docker logs ${CONTAINER_NAME} --tail 50
-                            exit 1
-                        fi
-                        echo "Retry \${COUNT}/\${MAX_RETRIES}..."
-                        sleep 15
-                    done
-                    echo "✅ Application is healthy!"
-                    curl -s ${HEALTH_URL}
-                """
+                sh '''
+                    curl -fsS "http://localhost:${APP_PORT}/actuator/health" | grep -q '"status":"UP"'
+                    test "$(docker inspect --format '{{.Config.Image}}' workout-app)" = "${APP_IMAGE}:${APP_VERSION}"
+                    echo "Deployed ${APP_IMAGE}:${APP_VERSION} and healthy"
+                '''
             }
         }
 
-    } // end stages
+        stage('Promote latest') {
+            // `latest` only moves after the new version was deployed AND verified healthy
+            when {
+                allOf {
+                    expression { env.BRANCH_NAME == 'main' || env.GIT_BRANCH in ['origin/main', 'main'] }
+                    expression { params.DEPLOY }
+                }
+            }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials',
+                                                  usernameVariable: 'DOCKER_USER',
+                                                  passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+                        docker tag "${APP_IMAGE}:${APP_VERSION}" "${APP_IMAGE}:latest"
+                        docker push "${APP_IMAGE}:latest"
+                        docker logout
+                    '''
+                }
+            }
+        }
+    }
 
     post {
-        success {
-            echo "🎉 Pipeline completed successfully! Version: ${APP_VERSION}"
-        }
-        failure {
-            echo "💥 Pipeline FAILED. Check stage logs above."
-        }
-        always {
-            echo "Pipeline finished. Build: #${BUILD_NUMBER}"
-            // Clean up dangling Docker images
-            sh 'docker image prune -f || true'
-        }
+        success { echo "Pipeline succeeded. Version: ${APP_VERSION}" }
+        failure { echo "Pipeline FAILED. See the failing stage's log and archived artifacts." }
+        always  { sh 'docker image prune -f --filter "until=168h" || true' }
     }
 }

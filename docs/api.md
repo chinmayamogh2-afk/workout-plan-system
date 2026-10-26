@@ -285,7 +285,7 @@ Custom Thymeleaf templates: `templates/error/400.html`, `404.html`, `500.html`
 
 | Username | Password | Role |
 |---|---|---|
-| `admin` | `Admin@123` | ADMIN |
-| `trainer` | `Trainer@123` | TRAINER |
+| `admin` | `Admin@123` (dev default; set `APP_ADMIN_PASSWORD`) | ADMIN |
+| `trainer` | `Trainer@123` (dev default; set `APP_TRAINER_PASSWORD`) | TRAINER |
 
 Seeded by `DataInitializer` on first application startup.
