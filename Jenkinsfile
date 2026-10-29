@@ -25,7 +25,7 @@ pipeline {
                description: 'Docker Hub namespace (user/org) the image is published under')
         booleanParam(name: 'PUSH_IMAGE', defaultValue: true,
                      description: 'Push image to Docker Hub (requires docker-hub-credentials in Jenkins)')
-        booleanParam(name: 'DEPLOY', defaultValue: false,
+        booleanParam(name: 'DEPLOY', defaultValue: true,
                      description: 'Deploy after a successful build on the main branch (requires workout-deploy-env)')
     }
 
@@ -33,7 +33,7 @@ pipeline {
         APP_NAME     = 'workout-plan-system'
         APP_VERSION  = "1.0.${BUILD_NUMBER}"
         APP_IMAGE    = "${params.DOCKER_NAMESPACE}/workout-plan-system"
-        APP_PORT     = '8080'
+        APP_PORT     = '8082'
         CI_PROJECT   = "wps-ci-${BUILD_NUMBER}"
         MAVEN_OPTS   = '-Xmx512m'
     }
