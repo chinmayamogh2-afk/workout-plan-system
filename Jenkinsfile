@@ -23,8 +23,10 @@ pipeline {
     parameters {
         string(name: 'DOCKER_NAMESPACE', defaultValue: 'devopsproject',
                description: 'Docker Hub namespace (user/org) the image is published under')
-        booleanParam(name: 'DEPLOY', defaultValue: true,
-                     description: 'Deploy after a successful build on the main branch')
+        booleanParam(name: 'PUSH_IMAGE', defaultValue: false,
+                     description: 'Push image to Docker Hub (requires docker-hub-credentials in Jenkins)')
+        booleanParam(name: 'DEPLOY', defaultValue: false,
+                     description: 'Deploy after a successful build on the main branch (requires workout-deploy-env)')
     }
 
     environment {
@@ -131,7 +133,12 @@ pipeline {
         }
 
         stage('Docker Push') {
-            when { expression { env.BRANCH_NAME == 'main' || env.GIT_BRANCH in ['origin/main', 'main'] } }
+            when {
+                allOf {
+                    expression { env.BRANCH_NAME == 'main' || env.GIT_BRANCH in ['origin/main', 'main'] }
+                    expression { params.PUSH_IMAGE }
+                }
+            }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials',
                                                   usernameVariable: 'DOCKER_USER',
@@ -181,6 +188,7 @@ pipeline {
             when {
                 allOf {
                     expression { env.BRANCH_NAME == 'main' || env.GIT_BRANCH in ['origin/main', 'main'] }
+                    expression { params.PUSH_IMAGE }
                     expression { params.DEPLOY }
                 }
             }
