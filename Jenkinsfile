@@ -21,9 +21,9 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'DOCKER_NAMESPACE', defaultValue: 'devopsproject',
+        string(name: 'DOCKER_NAMESPACE', defaultValue: 'chinmay206',
                description: 'Docker Hub namespace (user/org) the image is published under')
-        booleanParam(name: 'PUSH_IMAGE', defaultValue: false,
+        booleanParam(name: 'PUSH_IMAGE', defaultValue: true,
                      description: 'Push image to Docker Hub (requires docker-hub-credentials in Jenkins)')
         booleanParam(name: 'DEPLOY', defaultValue: false,
                      description: 'Deploy after a successful build on the main branch (requires workout-deploy-env)')
