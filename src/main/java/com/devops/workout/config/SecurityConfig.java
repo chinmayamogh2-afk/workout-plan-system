@@ -50,6 +50,8 @@ public class SecurityConfig {
                 // Public endpoints
                 .requestMatchers("/login", "/demo", "/css/**", "/js/**", "/images/**",
                                  "/actuator/health").permitAll()
+                // Admin exclusive console
+                .requestMatchers("/admin/**").hasRole("ADMIN")
                 // Plan creation and modifications require ADMIN or TRAINER role
                 .requestMatchers("/workouts/new", "/workouts/*/edit", "/workouts/*/delete", "/workouts/*/status")
                     .hasAnyRole("ADMIN", "TRAINER")

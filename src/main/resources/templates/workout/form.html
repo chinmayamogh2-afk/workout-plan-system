@@ -23,6 +23,7 @@
         <li class="nav-item"><a th:href="@{/dashboard}" class="nav-link" id="navDash"><span class="nav-icon">📊</span><span>Dashboard</span></a></li>
         <li class="nav-item"><a th:href="@{/workouts}" class="nav-link" id="navWorkouts"><span class="nav-icon">🏋️</span><span>Workout Plans</span></a></li>
         <li class="nav-item" sec:authorize="hasAnyRole('ADMIN', 'TRAINER')"><a th:href="@{/workouts/new}" class="nav-link" th:classappend="${formMode == 'create' ? ' active' : ''}" id="navCreate"><span class="nav-icon">➕</span><span>Create Plan</span></a></li>
+        <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a th:href="@{/admin/users}" class="nav-link" id="navAdminUsers"><span class="nav-icon">🛡️</span><span>Admin Console</span></a></li>
         <li class="nav-item" style="margin-top:12px"><a th:href="@{/demo}" class="nav-link demo-link" id="navDemo"><span class="nav-icon">🚀</span><span>Explore Demo</span><span class="nav-badge">NEW</span></a></li>
     </ul>
     <div class="sidebar-footer">

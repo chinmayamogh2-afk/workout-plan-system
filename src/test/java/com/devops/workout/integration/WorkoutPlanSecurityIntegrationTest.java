@@ -38,6 +38,9 @@ class WorkoutPlanSecurityIntegrationTest {
     @Autowired
     private WorkoutPlanRepository repository;
 
+    @Autowired
+    private com.devops.workout.repository.AppUserRepository userRepository;
+
     private Long alicePlanId;
     private Long alicePublishedId;
     private Long bobPlanId;
@@ -249,5 +252,66 @@ class WorkoutPlanSecurityIntegrationTest {
         assertThat(stats.getTotalPlans()).isEqualTo(1L);
         assertThat(stats.getPublishedCount()).isEqualTo(1L);
         assertThat(stats.getDraftCount()).isZero();
+    }
+
+    // ---- admin exclusive console (ROLE_ADMIN) ----
+
+    @Test
+    @WithMockUser(username = "admin", roles = "ADMIN")
+    @DisplayName("admin can access admin console and see user management and metrics")
+    void admin_canAccessAdminConsole() throws Exception {
+        mvc.perform(get("/admin/users"))
+                .andExpect(status().isOk())
+                .andExpect(model().attributeExists("users"))
+                .andExpect(model().attributeExists("totalUsers"))
+                .andExpect(model().attributeExists("pendingPlans"));
+    }
+
+    @Test
+    @WithMockUser(username = "trainer", roles = "TRAINER")
+    @DisplayName("trainer is forbidden (403) from accessing admin console")
+    void trainer_cannotAccessAdminConsole() throws Exception {
+        mvc.perform(get("/admin/users")).andExpect(status().isForbidden());
+        mvc.perform(post("/admin/users/new").with(csrf())
+                        .param("username", "baduser").param("password", "Pass@123")
+                        .param("fullName", "Bad User").param("email", "bad@test.local")
+                        .param("role", "ROLE_TRAINER"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "user", roles = "USER")
+    @DisplayName("member is forbidden (403) from accessing admin console")
+    void member_cannotAccessAdminConsole() throws Exception {
+        mvc.perform(get("/admin/users")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = "ADMIN")
+    @DisplayName("admin can provision a new trainer account")
+    void admin_canProvisionNewUser() throws Exception {
+        mvc.perform(post("/admin/users/new").with(csrf())
+                        .param("username", "coach_sam")
+                        .param("password", "Password@123")
+                        .param("fullName", "Sam Coach")
+                        .param("email", "sam@example.com")
+                        .param("role", "ROLE_TRAINER"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/users"));
+
+        assertThat(userRepository.existsByUsername("coach_sam")).isTrue();
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = "ADMIN")
+    @DisplayName("admin cannot disable their own active account")
+    void admin_cannotDisableSelf() throws Exception {
+        var adminUser = userRepository.findByUsername("admin").orElseThrow();
+        mvc.perform(post("/admin/users/" + adminUser.getId() + "/toggle-status").with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/users"));
+
+        var refreshed = userRepository.findByUsername("admin").orElseThrow();
+        assertThat(refreshed.isEnabled()).isTrue();
     }
 }
