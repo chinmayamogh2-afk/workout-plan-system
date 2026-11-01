@@ -8,15 +8,16 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'TARGET_VERSION', defaultValue: '',
-               description: 'Image version tag to roll back to (e.g. 1.0.9). Leave blank to auto-use previous version from .deploy/previous_version')
+        string(name: 'TARGET_VERSION', defaultValue: '1.0.9',
+               description: 'Image version tag to roll back to (e.g. 1.0.9). Leave blank to auto-detect previous version')
         string(name: 'DOCKER_NAMESPACE', defaultValue: 'chinmay206',
                description: 'Docker Hub namespace')
     }
 
     environment {
-        APP_IMAGE = "${params.DOCKER_NAMESPACE}/workout-plan-system"
-        APP_PORT  = '8082'
+        APP_IMAGE      = "${params.DOCKER_NAMESPACE}/workout-plan-system"
+        APP_PORT       = '8082'
+        TARGET_VERSION = "${params.TARGET_VERSION ?: ''}"
     }
 
     options {
@@ -44,13 +45,21 @@ pipeline {
                         export APP_PORT="${APP_PORT}"
                         export ENV_FILE="${ENV_FILE}"
                         
-                        if [ -n "${TARGET_VERSION}" ]; then
-                            echo "Executing explicit rollback to: ${APP_IMAGE}:${TARGET_VERSION}"
-                            ./scripts/rollback.sh "${TARGET_VERSION}"
-                        else
-                            echo "Executing auto-rollback to last recorded version..."
-                            ./scripts/rollback.sh
+                        ROLLBACK_VER="${TARGET_VERSION:-}"
+                        if [ -z "${ROLLBACK_VER}" ]; then
+                            if [ -f ".deploy/previous_version" ]; then
+                                ROLLBACK_VER="$(cat .deploy/previous_version)"
+                            elif [ -f "../workout-plan-system/.deploy/previous_version" ]; then
+                                ROLLBACK_VER="$(cat ../workout-plan-system/.deploy/previous_version)"
+                            elif [ -f "../workout-plan-system/.deploy/current_version" ]; then
+                                ROLLBACK_VER="$(cat ../workout-plan-system/.deploy/current_version)"
+                            else
+                                ROLLBACK_VER="1.0.9"
+                            fi
                         fi
+
+                        echo "Executing rollback to version: ${APP_IMAGE}:${ROLLBACK_VER}"
+                        ./scripts/rollback.sh "${ROLLBACK_VER}"
                     '''
                 }
             }
@@ -59,9 +68,10 @@ pipeline {
         stage('Verify Health') {
             steps {
                 sh '''
+                    set -eu
                     echo "Checking health endpoint on port ${APP_PORT}..."
                     curl -fsS "http://localhost:${APP_PORT}/actuator/health" | grep -q '"status":"UP"'
-                    echo "Application is healthy on port ${APP_PORT}."
+                    echo "Application is verified UP and healthy on port ${APP_PORT}!"
                     docker ps --filter "name=workout-app"
                 '''
             }
