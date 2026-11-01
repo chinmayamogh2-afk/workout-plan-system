@@ -184,6 +184,14 @@ flowchart LR
   The container is recreated in place, so there is a **short outage** during the switch (not zero-downtime).
 * `latest` is only pushed after the new version was deployed and verified.
 
+### Jenkins Pipelines Available
+
+The repository provides three dedicated Jenkins pipelines:
+
+1. **`Jenkinsfile` (Main Delivery Pipeline)**: Complete end-to-end pipeline covering parallelized unit & integration testing, packaging, container build, ephemeral Selenium testing, Docker Hub push, zero-downtime deployment, health verification, and latest tag promotion.
+2. **`Jenkinsfile.ci` (Fast CI Pipeline)**: Lightweight, high-velocity CI loop for PRs and feature branches. Runs compile, checkstyle, and the 61-test JUnit/H2 test suite without running heavy end-to-end stacks.
+3. **`Jenkinsfile.rollback` (Dedicated Rollback Pipeline)**: Instant, zero-risk recovery pipeline that restores the previous working version (or a user-specified `TARGET_VERSION`), restarts the container, and verifies `/actuator/health`.
+
 ### Required Jenkins credentials (created in Jenkins, never committed)
 
 | ID | Type | Contents |
@@ -268,13 +276,14 @@ the schema is managed by Hibernate `ddl-auto=update`, so a rollback never revert
 
 ## Default Credentials
 
-Seeded on first start. **Development only** – override with `APP_ADMIN_PASSWORD` / `APP_TRAINER_PASSWORD`
+Seeded on first start. **Development only** – override with `APP_ADMIN_PASSWORD` / `APP_TRAINER_PASSWORD` / `APP_USER_PASSWORD`
 (Docker Compose and Ansible require you to).
 
-| Username | Dev password | Role |
-|----------|--------------|------|
-| `admin` | `Admin@123` | ADMIN |
-| `trainer` | `Trainer@123` | TRAINER |
+| Username | Dev password | Role | Permissions |
+|----------|--------------|------|-------------|
+| `admin` | `Admin@123` | ADMIN | Full access, plan approvals/publishing, user provisioning & management console (`/admin/users`) |
+| `trainer` | `Trainer@123` | TRAINER | Create, edit, and submit own workout plans |
+| `user` | `User@123` | USER (Member) | Read-only access to published workout plans and member dashboard |
 
 Seeding only creates a user that does not exist yet; changing the variables later does not change an existing user's password.
 
@@ -288,14 +297,17 @@ Seeding only creates a user that does not exist yet; changing the variables late
 | POST | /login | Authenticate | Public |
 | GET | /logout | Logout | Authenticated |
 | GET | /dashboard | Statistics dashboard | Authenticated |
-| GET | /workouts | List / search / filter plans | Authenticated |
-| GET | /workouts/new | Create plan form | Authenticated |
-| POST | /workouts | Save new plan | Authenticated |
-| GET | /workouts/{id} | Plan detail | Authenticated |
-| GET | /workouts/{id}/edit | Edit plan form | Authenticated |
-| POST | /workouts/{id} | Save updated plan | Authenticated |
-| POST | /workouts/{id}/delete | Delete plan | Authenticated |
-| POST | /workouts/{id}/status | Change plan status | Authenticated |
+| GET | /workouts | List / search / filter plans (members see published only) | Authenticated |
+| GET | /workouts/new | Create plan form | ADMIN, TRAINER |
+| POST | /workouts/new | Save new plan | ADMIN, TRAINER |
+| GET | /workouts/{id} | Plan detail (members can only view published) | Authenticated |
+| GET | /workouts/{id}/edit | Edit plan form | Plan Owner / ADMIN |
+| POST | /workouts/{id} | Save updated plan | Plan Owner / ADMIN |
+| POST | /workouts/{id}/delete | Delete plan | Plan Owner / ADMIN |
+| POST | /workouts/{id}/status | Change plan status / approvals | Plan Owner / ADMIN |
+| GET | /admin/users | Admin Console (user management & review queue) | ADMIN only |
+| POST | /admin/users/new | Provision new user (Trainer / Member) | ADMIN only |
+| POST | /admin/users/{id}/toggle-status | Enable or disable user account | ADMIN only |
 | GET | /actuator/health | Health check | Public |
 
 ---
