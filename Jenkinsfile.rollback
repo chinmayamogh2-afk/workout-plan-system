@@ -1,0 +1,79 @@
+// =============================================================
+// Jenkinsfile.rollback – Automated Rollback & Recovery Pipeline
+// Purpose: Revert to a previous image version if an active release is faulty.
+// Stages: Checkout → Rollback Application → Verify Health
+// =============================================================
+
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'TARGET_VERSION', defaultValue: '',
+               description: 'Image version tag to roll back to (e.g. 1.0.9). Leave blank to auto-use previous version from .deploy/previous_version')
+        string(name: 'DOCKER_NAMESPACE', defaultValue: 'chinmay206',
+               description: 'Docker Hub namespace')
+    }
+
+    environment {
+        APP_IMAGE = "${params.DOCKER_NAMESPACE}/workout-plan-system"
+        APP_PORT  = '8082'
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 15, unit: 'MINUTES')
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh 'git log --oneline -3'
+            }
+        }
+
+        stage('Rollback Application') {
+            steps {
+                withCredentials([file(credentialsId: 'workout-deploy-env', variable: 'ENV_FILE')]) {
+                    sh '''
+                        set -eu
+                        chmod +x scripts/rollback.sh scripts/deploy.sh
+                        export APP_IMAGE="${APP_IMAGE}"
+                        export APP_PORT="${APP_PORT}"
+                        export ENV_FILE="${ENV_FILE}"
+                        
+                        if [ -n "${TARGET_VERSION}" ]; then
+                            echo "Executing explicit rollback to: ${APP_IMAGE}:${TARGET_VERSION}"
+                            ./scripts/rollback.sh "${TARGET_VERSION}"
+                        else
+                            echo "Executing auto-rollback to last recorded version..."
+                            ./scripts/rollback.sh
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Health') {
+            steps {
+                sh '''
+                    echo "Checking health endpoint on port ${APP_PORT}..."
+                    curl -fsS "http://localhost:${APP_PORT}/actuator/health" | grep -q '"status":"UP"'
+                    echo "Application is healthy on port ${APP_PORT}."
+                    docker ps --filter "name=workout-app"
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Rollback completed successfully and application is healthy."
+        }
+        failure {
+            echo "Rollback failed! Check docker logs and container status."
+        }
+    }
+}

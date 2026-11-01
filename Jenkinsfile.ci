@@ -1,0 +1,63 @@
+// =============================================================
+// Jenkinsfile.ci – Fast Continuous Integration Pipeline
+// Purpose: Fast verification for pull requests and feature branches.
+// Stages: Checkout → Compile → Unit & Integration Test → Package
+// =============================================================
+
+pipeline {
+    agent any
+
+    environment {
+        APP_NAME   = 'workout-plan-system'
+        MAVEN_OPTS = '-Xmx512m'
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '15'))
+        timeout(time: 15, unit: 'MINUTES')
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh 'git log --oneline -5'
+            }
+        }
+
+        stage('Compile & Validate') {
+            steps {
+                sh 'mvn -B -q clean compile'
+            }
+        }
+
+        stage('Unit & Integration Test') {
+            steps {
+                sh 'mvn -B test'
+            }
+            post {
+                always {
+                    junit testResults: 'target/surefire-reports/*.xml', allowEmptyResults: false
+                }
+            }
+        }
+
+        stage('Package Artifact') {
+            steps {
+                sh 'mvn -B -q package -DskipTests'
+                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "CI Pipeline Passed! Artifact ready for integration/review."
+        }
+        failure {
+            echo "CI Pipeline FAILED! Check the test reports and build console."
+        }
+    }
+}
