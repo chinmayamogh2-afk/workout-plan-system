@@ -16,6 +16,9 @@ import java.util.List;
 @Repository
 public interface WorkoutPlanRepository extends JpaRepository<WorkoutPlan, Long> {
 
+    /** Check if a plan exists with this exact name. */
+    boolean existsByName(String name);
+
     /** Find all plans by their workflow status. */
     List<WorkoutPlan> findByStatus(WorkoutStatus status);
 

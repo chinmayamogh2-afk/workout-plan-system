@@ -79,46 +79,50 @@ public class DataInitializer {
                 log.info("Created default member user (read-only)");
             }
 
-            // Seed 3 sample published workout plans if database has none
-            if (planRepo.count() == 0) {
-                planRepo.saveAll(List.of(
-                        WorkoutPlan.builder()
-                                .name("Full Body Beginner Strength")
-                                .description("A balanced full-body foundation routine focusing on compound movements, core stability, and functional mobility.")
-                                .exerciseDetails("1. Bodyweight Squats – 3 sets x 12 reps\n2. Push-ups – 3 sets x 10 reps\n3. Dumbbell Romanian Deadlifts – 3 sets x 12 reps\n4. Plank Hold – 3 sets x 45 seconds\n5. Dumbbell Overhead Press – 3 sets x 10 reps")
-                                .durationMinutes(45)
-                                .difficulty(DifficultyLevel.BEGINNER)
-                                .targetMuscleGroup("Full Body")
-                                .trainerName("Default Trainer")
-                                .createdBy("trainer")
-                                .status(WorkoutStatus.PUBLISHED)
-                                .build(),
+            // Seed 3 sample published workout plans if they don't already exist
+            if (!planRepo.existsByName("Full Body Beginner Strength")) {
+                planRepo.save(WorkoutPlan.builder()
+                        .name("Full Body Beginner Strength")
+                        .description("A balanced full-body foundation routine focusing on compound movements, core stability, and functional mobility.")
+                        .exerciseDetails("1. Bodyweight Squats – 3 sets x 12 reps\n2. Push-ups – 3 sets x 10 reps\n3. Dumbbell Romanian Deadlifts – 3 sets x 12 reps\n4. Plank Hold – 3 sets x 45 seconds\n5. Dumbbell Overhead Press – 3 sets x 10 reps")
+                        .durationMinutes(45)
+                        .difficulty(DifficultyLevel.BEGINNER)
+                        .targetMuscleGroup("Full Body")
+                        .trainerName("Default Trainer")
+                        .createdBy("trainer")
+                        .status(WorkoutStatus.PUBLISHED)
+                        .build());
+                log.info("Seeded sample plan: Full Body Beginner Strength");
+            }
 
-                        WorkoutPlan.builder()
-                                .name("HIIT Core & Cardio Blast")
-                                .description("High-intensity interval training designed to maximize calorie burn, cardiovascular endurance, and core strength.")
-                                .exerciseDetails("1. Mountain Climbers – 40s work, 20s rest x 4 rounds\n2. Bicycle Crunches – 40s work, 20s rest x 4 rounds\n3. High Knees Sprint – 40s work, 20s rest x 4 rounds\n4. Russian Twists – 40s work, 20s rest x 4 rounds\n5. Burpees – 40s work, 20s rest x 4 rounds")
-                                .durationMinutes(30)
-                                .difficulty(DifficultyLevel.INTERMEDIATE)
-                                .targetMuscleGroup("Core")
-                                .trainerName("Default Trainer")
-                                .createdBy("trainer")
-                                .status(WorkoutStatus.PUBLISHED)
-                                .build(),
+            if (!planRepo.existsByName("HIIT Core & Cardio Blast")) {
+                planRepo.save(WorkoutPlan.builder()
+                        .name("HIIT Core & Cardio Blast")
+                        .description("High-intensity interval training designed to maximize calorie burn, cardiovascular endurance, and core strength.")
+                        .exerciseDetails("1. Mountain Climbers – 40s work, 20s rest x 4 rounds\n2. Bicycle Crunches – 40s work, 20s rest x 4 rounds\n3. High Knees Sprint – 40s work, 20s rest x 4 rounds\n4. Russian Twists – 40s work, 20s rest x 4 rounds\n5. Burpees – 40s work, 20s rest x 4 rounds")
+                        .durationMinutes(30)
+                        .difficulty(DifficultyLevel.INTERMEDIATE)
+                        .targetMuscleGroup("Core")
+                        .trainerName("Default Trainer")
+                        .createdBy("trainer")
+                        .status(WorkoutStatus.PUBLISHED)
+                        .build());
+                log.info("Seeded sample plan: HIIT Core & Cardio Blast");
+            }
 
-                        WorkoutPlan.builder()
-                                .name("Advanced Upper Body Hypertrophy")
-                                .description("Heavy volume pressing and rowing sequence for maximum chest, back, and shoulder muscle development.")
-                                .exerciseDetails("1. Barbell Bench Press – 4 sets x 6-8 reps\n2. Weighted Pull-ups – 4 sets x 6-8 reps\n3. Incline Dumbbell Press – 3 sets x 10-12 reps\n4. Barbell Bent-Over Rows – 4 sets x 8-10 reps\n5. Dips to Failure – 3 sets\n6. Cable Face Pulls – 3 sets x 15 reps")
-                                .durationMinutes(60)
-                                .difficulty(DifficultyLevel.ADVANCED)
-                                .targetMuscleGroup("Chest & Back")
-                                .trainerName("System Admin")
-                                .createdBy("admin")
-                                .status(WorkoutStatus.PUBLISHED)
-                                .build()
-                ));
-                log.info("Seeded 3 sample published workout plans");
+            if (!planRepo.existsByName("Advanced Upper Body Hypertrophy")) {
+                planRepo.save(WorkoutPlan.builder()
+                        .name("Advanced Upper Body Hypertrophy")
+                        .description("Heavy volume pressing and rowing sequence for maximum chest, back, and shoulder muscle development.")
+                        .exerciseDetails("1. Barbell Bench Press – 4 sets x 6-8 reps\n2. Weighted Pull-ups – 4 sets x 6-8 reps\n3. Incline Dumbbell Press – 3 sets x 10-12 reps\n4. Barbell Bent-Over Rows – 4 sets x 8-10 reps\n5. Dips to Failure – 3 sets\n6. Cable Face Pulls – 3 sets x 15 reps")
+                        .durationMinutes(60)
+                        .difficulty(DifficultyLevel.ADVANCED)
+                        .targetMuscleGroup("Chest & Back")
+                        .trainerName("System Admin")
+                        .createdBy("admin")
+                        .status(WorkoutStatus.PUBLISHED)
+                        .build());
+                log.info("Seeded sample plan: Advanced Upper Body Hypertrophy");
             }
         };
     }
