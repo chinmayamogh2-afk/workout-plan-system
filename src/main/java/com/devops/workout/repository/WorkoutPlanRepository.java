@@ -60,6 +60,10 @@ public interface WorkoutPlanRepository extends JpaRepository<WorkoutPlan, Long> 
 
     List<WorkoutPlan> findTop5ByCreatedByOrderByCreatedAtDesc(String createdBy);
 
+    List<WorkoutPlan> findTop5ByStatusOrderByCreatedAtDesc(WorkoutStatus status);
+
+    long countByStatusAndDifficulty(WorkoutStatus status, DifficultyLevel difficulty);
+
     /** Same as filterPlans but restricted to one owner. */
     @Query("SELECT w FROM WorkoutPlan w WHERE w.createdBy = :owner AND " +
            "(:status IS NULL OR w.status = :status) AND " +

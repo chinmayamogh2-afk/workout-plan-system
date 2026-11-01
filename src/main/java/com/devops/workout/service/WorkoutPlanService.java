@@ -60,10 +60,13 @@ public class WorkoutPlanService {
                         "Workout plan not found with id: " + id));
     }
 
-    /** Find a plan the caller is allowed to see (owner or admin), else AccessDeniedException. */
+    /** Find a plan the caller is allowed to see (owner, admin, or any user for published plans), else AccessDeniedException. */
     @Transactional(readOnly = true)
     public WorkoutPlan getPlanForUser(Long id, String requestingUser, boolean isAdmin) {
         WorkoutPlan plan = getPlanById(id);
+        if (plan.getStatus() == WorkoutStatus.PUBLISHED) {
+            return plan;
+        }
         assertOwnerOrAdmin(plan, requestingUser, isAdmin, "You do not have access to this workout plan.");
         return plan;
     }
@@ -166,6 +169,19 @@ public class WorkoutPlanService {
                 (keyword == null || keyword.isBlank()) ? null : keyword.trim());
     }
 
+    /** Return all published plans (member/client view). */
+    @Transactional(readOnly = true)
+    public List<WorkoutPlan> getPublishedPlans() {
+        return repository.findByStatus(WorkoutStatus.PUBLISHED);
+    }
+
+    /** Filter published plans (member/client view). */
+    @Transactional(readOnly = true)
+    public List<WorkoutPlan> filterPublishedPlans(DifficultyLevel difficulty, String keyword) {
+        return repository.filterPlans(WorkoutStatus.PUBLISHED, difficulty,
+                (keyword == null || keyword.isBlank()) ? null : keyword.trim());
+    }
+
     /** Search restricted to what the caller may see. */
     @Transactional(readOnly = true)
     public List<WorkoutPlan> filterPlansForUser(String requestingUser, boolean isAdmin,
@@ -197,30 +213,65 @@ public class WorkoutPlanService {
                 .build();
     }
 
-    /** Dashboard statistics limited to the caller's own plans unless admin. */
+    /** Dashboard statistics for regular members (showing only published plan metrics). */
     @Transactional(readOnly = true)
-    public DashboardStatsDto getDashboardStats(String requestingUser, boolean isAdmin) {
-        if (isAdmin) {
-            return getDashboardStats();
-        }
+    public DashboardStatsDto getMemberDashboardStats() {
+        long pubCount = repository.countByStatus(WorkoutStatus.PUBLISHED);
         return DashboardStatsDto.builder()
-                .totalPlans(repository.countByCreatedBy(requestingUser))
-                .draftCount(repository.countByCreatedByAndStatus(requestingUser, WorkoutStatus.DRAFT))
-                .submittedCount(repository.countByCreatedByAndStatus(requestingUser, WorkoutStatus.SUBMITTED))
-                .approvedCount(repository.countByCreatedByAndStatus(requestingUser, WorkoutStatus.APPROVED))
-                .publishedCount(repository.countByCreatedByAndStatus(requestingUser, WorkoutStatus.PUBLISHED))
-                .beginnerCount(repository.countByCreatedByAndDifficulty(requestingUser, DifficultyLevel.BEGINNER))
-                .intermediateCount(repository.countByCreatedByAndDifficulty(requestingUser, DifficultyLevel.INTERMEDIATE))
-                .advancedCount(repository.countByCreatedByAndDifficulty(requestingUser, DifficultyLevel.ADVANCED))
+                .totalPlans(pubCount)
+                .draftCount(0)
+                .submittedCount(0)
+                .approvedCount(0)
+                .publishedCount(pubCount)
+                .beginnerCount(repository.countByStatusAndDifficulty(WorkoutStatus.PUBLISHED, DifficultyLevel.BEGINNER))
+                .intermediateCount(repository.countByStatusAndDifficulty(WorkoutStatus.PUBLISHED, DifficultyLevel.INTERMEDIATE))
+                .advancedCount(repository.countByStatusAndDifficulty(WorkoutStatus.PUBLISHED, DifficultyLevel.ADVANCED))
                 .build();
     }
 
-    /** Five most recent plans the caller may see. */
+    /** Dashboard statistics limited to the caller's role. */
+    @Transactional(readOnly = true)
+    public DashboardStatsDto getDashboardStats(String requestingUser, boolean isAdmin, boolean isTrainer) {
+        if (isAdmin) {
+            return getDashboardStats();
+        }
+        if (isTrainer) {
+            return DashboardStatsDto.builder()
+                    .totalPlans(repository.countByCreatedBy(requestingUser))
+                    .draftCount(repository.countByCreatedByAndStatus(requestingUser, WorkoutStatus.DRAFT))
+                    .submittedCount(repository.countByCreatedByAndStatus(requestingUser, WorkoutStatus.SUBMITTED))
+                    .approvedCount(repository.countByCreatedByAndStatus(requestingUser, WorkoutStatus.APPROVED))
+                    .publishedCount(repository.countByCreatedByAndStatus(requestingUser, WorkoutStatus.PUBLISHED))
+                    .beginnerCount(repository.countByCreatedByAndDifficulty(requestingUser, DifficultyLevel.BEGINNER))
+                    .intermediateCount(repository.countByCreatedByAndDifficulty(requestingUser, DifficultyLevel.INTERMEDIATE))
+                    .advancedCount(repository.countByCreatedByAndDifficulty(requestingUser, DifficultyLevel.ADVANCED))
+                    .build();
+        }
+        return getMemberDashboardStats();
+    }
+
+    /** Backwards-compatible overload for existing callers/tests. */
+    @Transactional(readOnly = true)
+    public DashboardStatsDto getDashboardStats(String requestingUser, boolean isAdmin) {
+        return getDashboardStats(requestingUser, isAdmin, true);
+    }
+
+    /** Five most recent plans the caller may see according to their role. */
+    @Transactional(readOnly = true)
+    public List<WorkoutPlan> getRecentPlans(String requestingUser, boolean isAdmin, boolean isTrainer) {
+        if (isAdmin) {
+            return repository.findTop5ByOrderByCreatedAtDesc();
+        }
+        if (isTrainer) {
+            return repository.findTop5ByCreatedByOrderByCreatedAtDesc(requestingUser);
+        }
+        return repository.findTop5ByStatusOrderByCreatedAtDesc(WorkoutStatus.PUBLISHED);
+    }
+
+    /** Backwards-compatible overload for existing callers/tests. */
     @Transactional(readOnly = true)
     public List<WorkoutPlan> getRecentPlans(String requestingUser, boolean isAdmin) {
-        return isAdmin
-                ? repository.findTop5ByOrderByCreatedAtDesc()
-                : repository.findTop5ByCreatedByOrderByCreatedAtDesc(requestingUser);
+        return getRecentPlans(requestingUser, isAdmin, true);
     }
 
     // ------------------------------------------------------------------ //

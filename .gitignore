@@ -38,6 +38,7 @@ ci.env
 .ci.env
 *.env
 !.env.example
+.deploy/
 
 # Ansible secrets
 ansible/secrets.yml

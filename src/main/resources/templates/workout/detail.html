@@ -22,7 +22,7 @@
     <ul class="sidebar-nav" role="list">
         <li class="nav-item"><a th:href="@{/dashboard}" class="nav-link" id="navDash"><span class="nav-icon">📊</span><span>Dashboard</span></a></li>
         <li class="nav-item"><a th:href="@{/workouts}" class="nav-link active" id="navWorkouts"><span class="nav-icon">🏋️</span><span>Workout Plans</span></a></li>
-        <li class="nav-item"><a th:href="@{/workouts/new}" class="nav-link" id="navCreate"><span class="nav-icon">➕</span><span>Create Plan</span></a></li>
+        <li class="nav-item" sec:authorize="hasAnyRole('ADMIN', 'TRAINER')"><a th:href="@{/workouts/new}" class="nav-link" id="navCreate"><span class="nav-icon">➕</span><span>Create Plan</span></a></li>
         <li class="nav-item" style="margin-top:12px"><a th:href="@{/demo}" class="nav-link demo-link" id="navDemo"><span class="nav-icon">🚀</span><span>Explore Demo</span><span class="nav-badge">NEW</span></a></li>
     </ul>
     <div class="sidebar-footer">
@@ -32,7 +32,8 @@
                 <div class="user-name" sec:authentication="name">User</div>
                 <div class="user-role">
                     <span sec:authorize="hasRole('ADMIN')" class="role-badge admin">Admin</span>
-                    <span sec:authorize="!hasRole('ADMIN')" class="role-badge trainer">Trainer</span>
+                    <span sec:authorize="hasRole('TRAINER') and !hasRole('ADMIN')" class="role-badge trainer">Trainer</span>
+                    <span sec:authorize="!hasAnyRole('ADMIN', 'TRAINER')" class="role-badge" style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)">Member</span>
                 </div>
             </div>
         </div>
@@ -71,6 +72,7 @@
             <div class="detail-actions">
                 <a th:href="@{/workouts}" class="btn btn-secondary" id="backBtn">← Back</a>
                 <a th:href="@{/workouts/{id}/edit(id=${plan.id})}" class="btn btn-primary" id="editBtn"
+                   sec:authorize="hasAnyRole('ADMIN', 'TRAINER')"
                    th:if="${isAdmin or isOwner}">✏️ Edit</a>
             </div>
         </div>
@@ -182,6 +184,7 @@
                 <!-- Delete (with custom modal) -->
                 <form th:action="@{/workouts/{id}/delete(id=${plan.id})}" method="post"
                       class="delete-form"
+                      sec:authorize="hasAnyRole('ADMIN', 'TRAINER')"
                       th:if="${isAdmin or isOwner}">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                     <button type="submit" class="btn btn-danger btn-sm" id="deleteBtn">🗑️ Delete Plan</button>

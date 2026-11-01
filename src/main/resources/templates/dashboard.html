@@ -26,7 +26,7 @@
     <ul class="sidebar-nav" role="list">
         <li class="nav-item"><a th:href="@{/dashboard}" class="nav-link active" id="navDash"><span class="nav-icon">📊</span><span>Dashboard</span></a></li>
         <li class="nav-item"><a th:href="@{/workouts}" class="nav-link" id="navWorkouts"><span class="nav-icon">🏋️</span><span>Workout Plans</span></a></li>
-        <li class="nav-item"><a th:href="@{/workouts/new}" class="nav-link" id="navCreate"><span class="nav-icon">➕</span><span>Create Plan</span></a></li>
+        <li class="nav-item" sec:authorize="hasAnyRole('ADMIN', 'TRAINER')"><a th:href="@{/workouts/new}" class="nav-link" id="navCreate"><span class="nav-icon">➕</span><span>Create Plan</span></a></li>
         <li class="nav-item" style="margin-top:12px"><a th:href="@{/demo}" class="nav-link demo-link" id="navDemo"><span class="nav-icon">🚀</span><span>Explore Demo</span><span class="nav-badge">NEW</span></a></li>
     </ul>
     <div class="sidebar-footer">
@@ -36,7 +36,8 @@
                 <div class="user-name" sec:authentication="name">User</div>
                 <div class="user-role">
                     <span sec:authorize="hasRole('ADMIN')" class="role-badge admin">Admin</span>
-                    <span sec:authorize="!hasRole('ADMIN')" class="role-badge trainer">Trainer</span>
+                    <span sec:authorize="hasRole('TRAINER') and !hasRole('ADMIN')" class="role-badge trainer">Trainer</span>
+                    <span sec:authorize="!hasAnyRole('ADMIN', 'TRAINER')" class="role-badge" style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)">Member</span>
                 </div>
             </div>
         </div>
@@ -74,7 +75,7 @@
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
                 <a th:href="@{/demo}" class="btn btn-cyan" id="demoEntryBtn">🚀 Explore Demo</a>
-                <a th:href="@{/workouts/new}" class="btn btn-primary" id="createPlanBtn">➕ New Plan</a>
+                <a th:href="@{/workouts/new}" class="btn btn-primary" id="createPlanBtn" sec:authorize="hasAnyRole('ADMIN', 'TRAINER')">➕ New Plan</a>
             </div>
         </div>
 

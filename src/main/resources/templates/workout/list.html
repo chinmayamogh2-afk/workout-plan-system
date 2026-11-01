@@ -23,7 +23,7 @@
     <ul class="sidebar-nav" role="list">
         <li class="nav-item"><a th:href="@{/dashboard}" class="nav-link" id="navDash"><span class="nav-icon">📊</span><span>Dashboard</span></a></li>
         <li class="nav-item"><a th:href="@{/workouts}" class="nav-link active" id="navWorkouts"><span class="nav-icon">🏋️</span><span>Workout Plans</span></a></li>
-        <li class="nav-item"><a th:href="@{/workouts/new}" class="nav-link" id="navCreate"><span class="nav-icon">➕</span><span>Create Plan</span></a></li>
+        <li class="nav-item" sec:authorize="hasAnyRole('ADMIN', 'TRAINER')"><a th:href="@{/workouts/new}" class="nav-link" id="navCreate"><span class="nav-icon">➕</span><span>Create Plan</span></a></li>
         <li class="nav-item" style="margin-top:12px"><a th:href="@{/demo}" class="nav-link demo-link" id="navDemo"><span class="nav-icon">🚀</span><span>Explore Demo</span><span class="nav-badge">NEW</span></a></li>
     </ul>
     <div class="sidebar-footer">
@@ -33,7 +33,8 @@
                 <div class="user-name" sec:authentication="name">User</div>
                 <div class="user-role">
                     <span sec:authorize="hasRole('ADMIN')" class="role-badge admin">Admin</span>
-                    <span sec:authorize="!hasRole('ADMIN')" class="role-badge trainer">Trainer</span>
+                    <span sec:authorize="hasRole('TRAINER') and !hasRole('ADMIN')" class="role-badge trainer">Trainer</span>
+                    <span sec:authorize="!hasAnyRole('ADMIN', 'TRAINER')" class="role-badge" style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)">Member</span>
                 </div>
             </div>
         </div>
@@ -63,9 +64,9 @@
         <div class="page-header">
             <div>
                 <h1 class="page-title">Workout Plans</h1>
-                <p class="page-subtitle" th:text="${isAdmin ? 'All plans across the entire system' : 'Your personal workout plans'}"></p>
+                <p class="page-subtitle" th:text="${isAdmin ? 'All plans across the entire system' : (isTrainer ? 'Your personal workout plans' : 'All published workout plans available for you')}"></p>
             </div>
-            <a th:href="@{/workouts/new}" class="btn btn-primary" id="createBtn">➕ New Plan</a>
+            <a th:href="@{/workouts/new}" class="btn btn-primary" id="createBtn" sec:authorize="hasAnyRole('ADMIN', 'TRAINER')">➕ New Plan</a>
         </div>
 
         <!-- Search & Filter -->
@@ -118,7 +119,7 @@
                 <p>Try a different search or create a new workout plan.</p>
                 <div style="display:flex;gap:10px;justify-content:center">
                     <a th:href="@{/workouts}" class="btn btn-secondary" th:if="${keyword != null and keyword != ''}">Clear Search</a>
-                    <a th:href="@{/workouts/new}" class="btn btn-primary" id="emptyCreateBtn">➕ Create a Plan</a>
+                    <a th:href="@{/workouts/new}" class="btn btn-primary" id="emptyCreateBtn" sec:authorize="hasAnyRole('ADMIN', 'TRAINER')">➕ Create a Plan</a>
                 </div>
             </div>
 
@@ -155,6 +156,7 @@
                         <td class="action-cell" onclick="event.stopPropagation()">
                             <a th:href="@{/workouts/{id}(id=${plan.id})}" class="btn btn-xs btn-view" th:id="${'view-' + plan.id}">View</a>
                             <a th:href="@{/workouts/{id}/edit(id=${plan.id})}" class="btn btn-xs btn-edit"
+                               sec:authorize="hasAnyRole('ADMIN', 'TRAINER')"
                                th:if="${isAdmin or plan.createdBy == #authentication.name}"
                                th:id="${'edit-' + plan.id}">Edit</a>
                         </td>

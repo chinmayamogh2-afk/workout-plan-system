@@ -204,4 +204,50 @@ class WorkoutPlanSecurityIntegrationTest {
                 .andExpect(status().isOk());
         assertThat(repository.count()).isEqualTo(before);
     }
+
+    // ---- regular member role (ROLE_USER) ----
+
+    @Test
+    @WithMockUser(username = "user", roles = "USER")
+    @DisplayName("member can view published plans but cannot view unpublished draft plans")
+    void member_publishedVisibilityRules() throws Exception {
+        // Can view published
+        mvc.perform(get("/workouts/" + alicePublishedId)).andExpect(status().isOk());
+        // Cannot view draft
+        mvc.perform(get("/workouts/" + alicePlanId)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "user", roles = "USER")
+    @DisplayName("member cannot create, edit, or delete any workout plan")
+    void member_cannotMutatePlans() throws Exception {
+        mvc.perform(get("/workouts/new")).andExpect(status().isForbidden());
+        mvc.perform(post("/workouts/new").with(csrf())
+                        .param("name", "User Plan").param("durationMinutes", "20"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/workouts/" + alicePublishedId + "/edit")).andExpect(status().isForbidden());
+        mvc.perform(post("/workouts/" + alicePublishedId + "/delete").with(csrf()))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/workouts/" + alicePublishedId + "/status").with(csrf())
+                        .param("newStatus", "DRAFT"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "user", roles = "USER")
+    @DisplayName("member list and dashboard only show published plans")
+    void member_seesOnlyPublishedPlans() throws Exception {
+        // In list, only 1 published plan is returned
+        mvc.perform(get("/workouts"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("plans", org.hamcrest.Matchers.hasSize(1)));
+
+        // In dashboard, stats only reflect published plans
+        DashboardStatsDto stats = (DashboardStatsDto) mvc.perform(get("/dashboard"))
+                .andExpect(status().isOk())
+                .andReturn().getModelAndView().getModel().get("stats");
+        assertThat(stats.getTotalPlans()).isEqualTo(1L);
+        assertThat(stats.getPublishedCount()).isEqualTo(1L);
+        assertThat(stats.getDraftCount()).isZero();
+    }
 }

@@ -27,9 +27,15 @@ public class DashboardController {
     @GetMapping("/dashboard")
     public String dashboard(Authentication auth, Model model) {
         boolean isAdmin = auth.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
-        model.addAttribute("stats", service.getDashboardStats(auth.getName(), isAdmin));
-        model.addAttribute("recentPlans", service.getRecentPlans(auth.getName(), isAdmin));
+        boolean isTrainer = auth.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_TRAINER"));
+        boolean isMember = !isAdmin && !isTrainer;
+
+        model.addAttribute("stats", service.getDashboardStats(auth.getName(), isAdmin, isTrainer));
+        model.addAttribute("recentPlans", service.getRecentPlans(auth.getName(), isAdmin, isTrainer));
         model.addAttribute("username", auth.getName());
+        model.addAttribute("isAdmin", isAdmin);
+        model.addAttribute("isTrainer", isTrainer);
+        model.addAttribute("isMember", isMember);
         return "dashboard";
     }
 }
